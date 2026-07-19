@@ -1,0 +1,12 @@
+# ── Qdrant Private Service for Render ───────────────────────────
+# Used by render.yaml to run Qdrant as a private service with persistent disk.
+# This is a thin wrapper around the official Qdrant image.
+FROM qdrant/qdrant:latest
+
+# Render mounts the disk at /qdrant/storage
+# Qdrant stores data at /qdrant/storage by default
+ENV QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage
+
+EXPOSE 6333 6334
+
+CMD ["./entrypoint.sh"]

@@ -1,0 +1,52 @@
+[
+  {
+    "type": "payment",
+    "title": "Fair Payment Terms",
+    "content": "Client shall pay Consultant the fees set forth in Exhibit A within thirty (30) days of receipt of an accurate and undisputed invoice. In the event of a bona fide dispute regarding any invoice, Client shall pay the undisputed portion when due and the parties shall work in good faith to resolve the disputed portion within fifteen (15) business days. Late payments shall accrue simple interest at the lesser of 1% per month or the maximum rate permitted by applicable law."
+  },
+  {
+    "type": "termination",
+    "title": "Fair Termination Clause",
+    "content": "Either party may terminate this Agreement (a) for material breach by the other party that remains uncured for thirty (30) days after written notice, or (b) upon sixty (60) days written notice for convenience. Upon termination, Consultant shall be paid for all work completed through the effective date of termination plus any non-cancellable expenses incurred. All provisions that by their nature should survive termination, including confidentiality, limitation of liability, and payment obligations, shall so survive."
+  },
+  {
+    "type": "liability",
+    "title": "Balanced Limitation of Liability",
+    "content": "Neither party shall be liable for any indirect, incidental, special, or consequential damages arising out of or related to this Agreement, including lost profits, except in cases of gross negligence, willful misconduct, fraud, or breach of confidentiality obligations. Each party's total aggregate liability under this Agreement shall not exceed the greater of (a) the total fees paid or payable under this Agreement during the twelve (12) months preceding the claim, or (b) one hundred thousand dollars ($100,000). These limitations shall not apply to indemnification obligations, breach of confidentiality, or infringement of intellectual property rights."
+  },
+  {
+    "type": "confidentiality",
+    "title": "Mutual Confidentiality Clause",
+    "content": "Each party (the 'Receiving Party') agrees to hold in strict confidence all non-public information disclosed by the other party (the 'Disclosing Party'), whether in writing, orally, or through any other medium, that is clearly identified as confidential or that a reasonable person would understand to be confidential (collectively, 'Confidential Information'). The Receiving Party shall use at least the same degree of care as it uses with its own similar confidential information, but in no event less than reasonable care. Confidential Information excludes information that (a) is or becomes publicly available through no breach, (b) was lawfully known prior to disclosure, (c) is independently developed without use of Confidential Information, or (d) is required to be disclosed by law, provided the Receiving Party gives prompt notice and reasonable cooperation to limit such disclosure."
+  },
+  {
+    "type": "intellectual_property",
+    "title": "Balanced IP Ownership",
+    "content": "Consultant retains all right, title, and interest in its pre-existing materials, tools, methodologies, and know-how ('Consultant IP'). Upon full payment, Consultant assigns to Client all right, title, and interest in the deliverables specifically created for Client under this Agreement ('Work Product'), excluding Consultant IP. Consultant grants Client a perpetual, irrevocable, royalty-free, worldwide license to use any Consultant IP incorporated into the Work Product solely to the extent necessary for Client to use the Work Product. Each party represents that its contributions will not infringe the intellectual property rights of any third party."
+  },
+  {
+    "type": "data_protection",
+    "title": "Fair Data Processing Clause",
+    "content": "Each party shall comply with all applicable data protection laws, including the General Data Protection Regulation (GDPR) and the California Consumer Privacy Act (CCPA), as applicable. Consultant shall process personal data only on documented instructions from Client and shall implement appropriate technical and organizational measures to protect personal data against unauthorized access, alteration, disclosure, or destruction. Consultant shall notify Client of any data breach involving Client's personal data within forty-eight (48) hours of discovery. Consultant shall not sell, retain, or use Client's personal data for any purpose other than performing the Services under this Agreement."
+  },
+  {
+    "type": "non_compete",
+    "title": "Reasonable Non-Solicitation",
+    "content": "During the term of this Agreement and for a period of twelve (12) months thereafter, each party agrees not to solicit for employment or hire any employee of the other party who was materially involved in the performance of this Agreement, provided that this restriction shall not apply to general public solicitations not targeted at such employees. The parties agree that this restriction is reasonable in scope and duration and is necessary to protect the legitimate business interests of each party. Nothing in this clause shall restrict a party from engaging in its ordinary course of business or serving any client or customer."
+  },
+  {
+    "type": "governing_law",
+    "title": "Fair Dispute Resolution",
+    "content": "This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to its conflict of laws principles. Before initiating any formal legal proceedings, the parties shall first attempt to resolve any dispute through good-faith negotiation for a period of thirty (30) days. If negotiation fails, the parties shall submit the dispute to non-binding mediation administered by a mutually agreed mediator, with costs shared equally. Any litigation shall be brought exclusively in the state or federal courts located in the agreed venue, and each party irrevocably consents to such jurisdiction and waives any objection to venue."
+  },
+  {
+    "type": "force_majeure",
+    "title": "Fair Force Majeure Provision",
+    "content": "Neither party shall be liable for any delay or failure to perform its obligations under this Agreement to the extent such delay or failure results from causes beyond its reasonable control, including acts of God, war, terrorism, civil unrest, epidemic, pandemic, fire, flood, earthquake, governmental action, or failure of utilities or telecommunications networks (each a 'Force Majeure Event'). The affected party shall (a) promptly notify the other party of the Force Majeure Event, its expected duration, and the obligations affected, and (b) use commercially reasonable efforts to mitigate the impact and resume performance. If a Force Majeure Event continues for more than thirty (30) days, either party may terminate this Agreement without liability upon written notice."
+  },
+  {
+    "type": "warranty",
+    "title": "Balanced Warranty Terms",
+    "content": "Consultant warrants that (a) the Services shall be performed in a professional and workmanlike manner consistent with industry standards, (b) Consultant has the full right and authority to enter into and perform this Agreement, and (c) the Work Product, when delivered, shall materially conform to the specifications set forth in the applicable statement of work. EXCEPT AS EXPRESSLY STATED HEREIN, THE SERVICES AND WORK PRODUCT ARE PROVIDED 'AS IS,' AND CONSULTANT DISCLAIMS ALL IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Client warrants that it has the authority to grant Consultant access to any Client systems or data necessary to perform the Services."
+  }
+]

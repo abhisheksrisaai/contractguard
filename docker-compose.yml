@@ -1,0 +1,76 @@
+# ── ContractGuard — Full Stack Docker Compose ──────────────────
+# Start: docker-compose up -d
+# Stop:  docker-compose down
+# View:  http://localhost:5173 (frontend) | http://localhost:8000/docs (API)
+
+version: "3.8"
+
+services:
+  # ── Qdrant Vector Database ────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: contractguard-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/collections"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── FastAPI Backend ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: contractguard-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override for Docker networking
+      QDRANT_MODE: remote
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      APP_PORT: 8000
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - reports:/app/reports
+
+  # ── Vite React Frontend (Dev) ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: contractguard-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+
+volumes:
+  qdrant_storage:
+    driver: local
+  uploads:
+    driver: local
+  reports:
+    driver: local

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ContractGuard — Contract Risk Analysis Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm 1.8cm;
+      @top-center {
+        content: "ContractGuard — Risk Analysis Report";
+        font-size: 9pt;
+        color: #888;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+      }
+      @bottom-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 8pt;
+        color: #aaa;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #fff;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    .report-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      padding: 28px 32px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+    }
+    .report-header h1 {
+      font-size: 24pt;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .report-header .subtitle {
+      font-size: 10pt;
+      color: #a0b4d0;
+      margin-top: 4px;
+    }
+
+    /* ── Score Banner ───────────────────────── */
+    .score-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 28px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      background: #f8f9fc;
+      border: 2px solid #e2e6ef;
+    }
+    .score-circle {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .score-circle.high { background: #e74c3c; }
+    .score-circle.medium { background: #f39c12; }
+    .score-circle.low { background: #27ae60; }
+    .score-circle .number { font-size: 28pt; line-height: 1; }
+    .score-circle .label { font-size: 9pt; text-transform: uppercase; letter-spacing: 1px; }
+    .score-details {
+      flex: 1;
+    }
+    .score-details h2 {
+      font-size: 14pt;
+      margin-bottom: 4px;
+      color: #1a1a2e;
+    }
+    .score-details .assessment {
+      font-size: 10pt;
+      color: #555;
+      line-height: 1.5;
+    }
+    .score-breakdown {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .breakdown-item {
+      text-align: center;
+    }
+    .breakdown-item .count {
+      font-size: 16pt;
+      font-weight: 700;
+    }
+    .breakdown-item .lbl {
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+    }
+    .breakdown-item.high .count { color: #e74c3c; }
+    .breakdown-item.medium .count { color: #f39c12; }
+    .breakdown-item.low .count { color: #27ae60; }
+
+    /* ── Stats Row ──────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      flex: 1;
+      background: #f0f4ff;
+      border-radius: 8px;
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .stat-card .stat-num { font-size: 18pt; font-weight: 700; color: #1a1a2e; }
+    .stat-card .stat-lbl { font-size: 8pt; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Clause Cards ───────────────────────── */
+    .clauses-section { margin-bottom: 24px; }
+    .clauses-section h2 {
+      font-size: 15pt;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 3px solid #e2e6ef;
+      color: #1a1a2e;
+    }
+    .clause-card {
+      border: 1px solid #e2e6ef;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .clause-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #fafbfc;
+      border-bottom: 1px solid #e2e6ef;
+    }
+    .clause-card-header h3 {
+      font-size: 11pt;
+      font-weight: 600;
+    }
+    .risk-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .risk-badge.high { background: #e74c3c; }
+    .risk-badge.medium { background: #f39c12; }
+    .risk-badge.low { background: #27ae60; }
+
+    .clause-card-body { padding: 14px 16px; }
+    .clause-field { margin-bottom: 10px; }
+    .clause-field .field-label {
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #888;
+      margin-bottom: 3px;
+    }
+    .clause-field .field-value {
+      font-size: 10pt;
+      color: #333;
+      line-height: 1.5;
+    }
+    .clause-field .field-value.original {
+      background: #fff9e6;
+      padding: 10px 12px;
+      border-left: 3px solid #f39c12;
+      border-radius: 4px;
+      font-style: italic;
+    }
+    .clause-field .field-value.alternative {
+      background: #eafaf1;
+      padding: 10px 12px;
+      border-left: 3px solid #27ae60;
+      border-radius: 4px;
+    }
+    .risk-factors { list-style: none; padding: 0; }
+    .risk-factors li {
+      padding: 3px 0;
+      font-size: 9pt;
+      color: #c0392b;
+    }
+    .risk-factors li::before { content: "⚠ "; }
+
+    /* ── Fair Alternatives ──────────────────── */
+    .alternatives-box {
+      margin-top: 10px;
+      background: #f6f9f6;
+      border-radius: 6px;
+      padding: 12px 14px;
+      border: 1px solid #d5e8d4;
+    }
+    .alternatives-box h4 {
+      font-size: 9pt;
+      color: #27ae60;
+      margin-bottom: 6px;
+    }
+    .alt-item {
+      font-size: 9pt;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px dotted #d5e8d4;
+    }
+    .alt-item:last-child { border-bottom: none; margin-bottom: 0; }
+    .alt-item .alt-title { font-weight: 600; color: #1a1a2e; }
+    .alt-item .alt-score { font-size: 8pt; color: #888; }
+    .alt-item .alt-content { font-size: 8.5pt; color: #555; margin-top: 3px; }
+
+    /* ── Footer ─────────────────────────────── */
+    .report-footer {
+      margin-top: 30px;
+      padding-top: 14px;
+      border-top: 1px solid #e2e6ef;
+      font-size: 8pt;
+      color: #999;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* ── Print Tweaks ───────────────────────── */
+    @media print {
+      body { font-size: 10pt; }
+      .clause-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="report-header">
+  <h1>📋 Contract Risk Analysis Report</h1>
+  <div class="subtitle">Generated by ContractGuard AI • {{ generated_at }}</div>
+</div>
+
+<!-- Overall Score -->
+<div class="score-banner">
+  <div class="score-circle {{ risk_class }}">
+    <span class="number">{{ overall_score }}</span>
+    <span class="label">{{ risk_level }}</span>
+  </div>
+  <div class="score-details">
+    <h2>{{ risk_class.title() }} Risk Contract</h2>
+    <p class="assessment">{{ assessment }}</p>
+    <div class="score-breakdown">
+      <div class="breakdown-item high">
+        <div class="count">{{ breakdown.High }}</div>
+        <div class="lbl">High Risk</div>
+      </div>
+      <div class="breakdown-item medium">
+        <div class="count">{{ breakdown.Medium }}</div>
+        <div class="lbl">Medium Risk</div>
+      </div>
+      <div class="breakdown-item low">
+        <div class="count">{{ breakdown.Low }}</div>
+        <div class="lbl">Low Risk</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-num">{{ total_clauses }}</div>
+    <div class="stat-lbl">Total Clauses</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ high_risk_count }}</div>
+    <div class="stat-lbl">High Risk Alert{% if high_risk_count != 1 %}s{% endif %}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ fair_matches }}</div>
+    <div class="stat-lbl">Fair Alternatives Found</div>
+  </div>
+</div>
+
+<!-- Clause Details -->
+<div class="clauses-section">
+  <h2>📑 Detailed Clause Analysis</h2>
+
+  {% for clause in clauses %}
+  <div class="clause-card">
+    <div class="clause-card-header">
+      <h3>#{{ loop.index }}. {{ clause.title or "Clause" }}</h3>
+      <span class="risk-badge {{ clause.risk_level|lower }}">{{ clause.risk_level }}</span>
+    </div>
+    <div class="clause-card-body">
+      <div class="clause-field">
+        <div class="field-label">Type</div>
+        <div class="field-value">{{ clause.type or "general" | title }}</div>
+      </div>
+
+      <!-- Risk Score -->
+      <div class="clause-field">
+        <div class="field-label">Risk Score</div>
+        <div class="field-value"><strong>{{ clause.risk_score }}/100</strong></div>
+      </div>
+
+      <!-- Original Text -->
+      <div class="clause-field">
+        <div class="field-label">Original Text</div>
+        <div class="field-value original">{{ clause.content[:600] }}{% if clause.content|length > 600 %}...{% endif %}</div>
+      </div>
+
+      <!-- Explanation -->
+      <div class="clause-field">
+        <div class="field-label">Risk Explanation</div>
+        <div class="field-value">{{ clause.explanation or "No specific explanation." }}</div>
+      </div>
+
+      <!-- Risk Factors -->
+      {% if clause.risk_factors %}
+      <div class="clause-field">
+        <div class="field-label">Risk Factors</div>
+        <ul class="risk-factors">
+          {% for factor in clause.risk_factors %}
+          <li>{{ factor }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Suggested Alternative -->
+      {% if clause.suggested_alternative %}
+      <div class="clause-field">
+        <div class="field-label">💡 Suggested Alternative</div>
+        <div class="field-value alternative">{{ clause.suggested_alternative }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Missing Protections -->
+      {% if clause.missing_protections %}
+      <div class="clause-field">
+        <div class="field-label">Missing Protections</div>
+        <ul class="risk-factors">
+          {% for mp in clause.missing_protections %}
+          <li>{{ mp }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Fair Alternatives (RAG) -->
+      {% if clause.fair_alternatives %}
+      <div class="alternatives-box">
+        <h4>🔍 Similar Fair Clauses (from Library)</h4>
+        {% for alt in clause.fair_alternatives %}
+        <div class="alt-item">
+          <div class="alt-title">{{ alt.title }}</div>
+          <div class="alt-score">Match: {{ "%.0f" % (alt.score * 100) }}%</div>
+          <div class="alt-content">{{ alt.content[:300] }}{% if alt.content|length > 300 %}...{% endif %}</div>
+        </div>
+        {% endfor %}
+        {% if clause.comparison_notes %}
+        <div class="field-label" style="margin-top:8px;">Comparison Notes</div>
+        <div class="field-value" style="font-size:9pt;">{{ clause.comparison_notes }}</div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Footer -->
+<div class="report-footer">
+  <p>This report was generated by ContractGuard, an AI-powered contract risk analysis tool.</p>
+  <p><strong>⚠️ Disclaimer:</strong> This analysis is for informational purposes only and does not constitute legal advice. Always consult a qualified attorney before making legal decisions.</p>
+  <p>ContractGuard © 2025 • Report ID: {{ report_id }}</p>
+</div>
+
+</body>
+</html>
