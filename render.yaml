@@ -1,6 +1,6 @@
 # ── ContractGuard — Render Blueprint ───────────────────────────
 # Render auto-detects this file when you connect your GitHub repo.
-# See deploy instructions in the conversation for step-by-step.
+# See instructions below for manual setup via Render dashboard.
 
 services:
   # ── FastAPI Backend (Web Service) ──────────────────────────────
@@ -18,37 +18,33 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
-      # ── Qdrant Connection (auto-filled from private service) ─
+      # ── Qdrant (local mode — runs inside backend container) ─
       - key: QDRANT_MODE
-        value: remote
+        value: local
       - key: QDRANT_HOST
-        fromService:
-          name: contractguard-qdrant
-          type: pserv
-          property: host
+        value: localhost
       - key: QDRANT_PORT
-        value: 6333
+        value: "6333"
       - key: QDRANT_LOCAL_PATH
-        value: ""
+        value: /app/qdrant_data
       # ── Application ─────────────────────────────────────────
       - key: APP_DEBUG
         value: false
       - key: MAX_UPLOAD_SIZE_MB
-        value: 10
+        value: "10"
       - key: EMBEDDING_MODEL
         value: sentence-transformers/all-MiniLM-L6-v2
       # ── CORS (update after Vercel deploy) ──────────────────
       - key: FRONTEND_URL
         value: https://contractguard.vercel.app
 
-  # ── Qdrant Vector Database (Private Service) ──────────────────
+  # ── Qdrant Private Service ────────────────────────────────────
   - name: contractguard-qdrant
     type: pserv
-    runtime: image
+    runtime: docker
     repo: https://github.com/YOUR_USERNAME/contractguard
     branch: main
-    image:
-      image: qdrant/qdrant:latest
+    dockerfilePath: ./backend/Dockerfile.qdrant
     plan: free
     disk:
       name: qdrant-data

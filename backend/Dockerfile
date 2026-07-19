@@ -31,8 +31,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code (startup.sh must be executable)
 COPY . .
+RUN chmod +x /app/startup.sh
 
 # Create directories for uploads and reports
 RUN mkdir -p /app/uploads /app/reports /app/qdrant_data
@@ -45,7 +46,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/api/health')" || exit 1
 
 # Startup command — uses startup.sh for auto-seed logic
-COPY startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
-
 CMD ["/app/startup.sh"]
