@@ -7,7 +7,7 @@ services:
   - name: contractguard-api
     type: web
     runtime: docker
-    repo: https://github.com/YOUR_USERNAME/contractguard
+    repo: https://github.com/abhisheksrisaai/contractguard
     branch: main
     dockerfilePath: ./backend/Dockerfile
     plan: free
@@ -42,7 +42,7 @@ services:
   - name: contractguard-qdrant
     type: pserv
     runtime: docker
-    repo: https://github.com/YOUR_USERNAME/contractguard
+    repo: https://github.com/abhisheksrisaai/contractguard
     branch: main
     dockerfilePath: ./backend/Dockerfile.qdrant
     plan: free

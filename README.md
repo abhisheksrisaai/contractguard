@@ -1,6 +1,6 @@
 # 🛡️ ContractGuard — AI-Powered Contract Risk Analysis
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/YOUR_USERNAME/contractguard)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/abhisheksrisaai/contractguard)
 
 ContractGuard analyzes legal contracts using AI to identify risks, suggest fair alternatives, and generate downloadable reports. Built with FastAPI, React, Groq LLM, and Qdrant vector search.
 
@@ -28,7 +28,7 @@ ContractGuard analyzes legal contracts using AI to identify risks, suggest fair 
 ### 1. Clone & Setup Backend
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/contractguard.git
+git clone https://github.com/abhisheksrisaai/contractguard.git
 cd contractguard/backend
 
 # Create virtual environment
