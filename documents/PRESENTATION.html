@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContractGuard — Faculty Demo Presentation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; overflow: hidden; }
+  .slide { display: none; width: 100vw; height: 100vh; padding: 60px 80px; flex-direction: column; justify-content: center; }
+  .slide.active { display: flex; }
+  h1 { font-size: 48px; font-weight: 800; margin-bottom: 24px; background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h2 { font-size: 32px; font-weight: 700; margin-bottom: 20px; color: #f1f5f9; }
+  h3 { font-size: 22px; font-weight: 600; color: #94a3b8; margin-bottom: 8px; }
+  p, li { font-size: 22px; line-height: 1.7; color: #cbd5e1; }
+  ul, ol { padding-left: 28px; }
+  li { margin-bottom: 10px; }
+  .subtitle { font-size: 22px; color: #94a3b8; margin-top: 8px; }
+  .badge { display: inline-block; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 6px 16px; border-radius: 20px; font-size: 16px; font-weight: 600; margin: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 20px; }
+  th { background: rgba(56,189,248,0.15); color: #38bdf8; padding: 14px 18px; text-align: left; font-weight: 700; }
+  td { padding: 14px 18px; border-bottom: 1px solid rgba(148,163,184,0.15); color: #cbd5e1; }
+  .arch-box { background: rgba(30,41,59,0.8); border: 1px solid rgba(56,189,248,0.2); border-radius: 16px; padding: 28px; text-align: center; font-family: monospace; font-size: 18px; line-height: 2; margin: 20px 0; }
+  .nav { position: fixed; bottom: 28px; right: 40px; display: flex; gap: 12px; z-index: 100; }
+  .nav button { background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); color: #38bdf8; padding: 10px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+  .nav button:hover { background: rgba(56,189,248,0.25); }
+  .counter { position: fixed; bottom: 32px; left: 40px; font-size: 16px; color: #64748b; z-index: 100; }
+  .highlight { color: #38bdf8; font-weight: 700; }
+  .emoji { font-size: 60px; margin-bottom: 16px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .card { background: rgba(30,41,59,0.6); border-radius: 16px; padding: 28px; border: 1px solid rgba(148,163,184,0.1); }
+  .card h3 { color: #38bdf8; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide active" id="s1">
+  <div class="emoji">🛡️</div>
+  <h1>ContractGuard</h1>
+  <p style="font-size:28px;color:#e2e8f0;">AI-Powered Contract Risk Analysis</p>
+  <p class="subtitle" style="margin-top:30px;">Making legal contracts accessible to everyone</p>
+  <p class="subtitle" style="margin-top:40px;">[Your Name] · [Roll Number] · [Department]</p>
+</div>
+
+<!-- SLIDE 2: Problem -->
+<div class="slide" id="s2">
+  <h2>📋 The Problem</h2>
+  <table>
+    <tr><th>Statistic</th><th>Impact</th></tr>
+    <tr><td><span class="highlight">70%</span> of employees</td><td>Sign contracts without full understanding</td></tr>
+    <tr><td><span class="highlight">₹5,000–50,000</span></td><td>Typical legal review cost per contract</td></tr>
+    <tr><td><span class="highlight">15–30 days</span></td><td>Average turnaround for lawyer review</td></tr>
+    <tr><td><span class="highlight">0</span></td><td>Free, accessible tools for common people</td></tr>
+  </table>
+  <p style="margin-top:24px;font-size:24px;">Legal review is <span class="highlight">expensive</span>, <span class="highlight">slow</span>, and <span class="highlight">inaccessible</span> to most Indians.</p>
+</div>
+
+<!-- SLIDE 3: Solution -->
+<div class="slide" id="s3">
+  <h2>🛡️ Our Solution</h2>
+  <p style="font-size:28px;margin-bottom:30px;">Upload a contract PDF → AI analyzes → Risk report in minutes</p>
+  <div style="display:flex;gap:24px;">
+    <div class="card" style="flex:1;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">📄</div>
+      <h3>1. Upload</h3>
+      <p>Drop your contract PDF</p>
+    </div>
+    <div class="card" style="flex:1;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">🤖</div>
+      <h3>2. Analyze</h3>
+      <p>AI examines every clause</p>
+    </div>
+    <div class="card" style="flex:1;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">📊</div>
+      <h3>3. Results</h3>
+      <p>Risk scores + alternatives</p>
+    </div>
+  </div>
+  <p style="margin-top:24px;text-align:center;"><span class="badge">⚡ 45 seconds average</span> <span class="badge">💰 100% Free</span></p>
+</div>
+
+<!-- SLIDE 4: Architecture -->
+<div class="slide" id="s4">
+  <h2>🏗️ System Architecture</h2>
+  <div class="arch-box">
+    ┌──────────┐&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;┌──────────┐&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;┌──────────┐<br>
+    │  REACT   │───▶│ FASTAPI  │───▶│ GROQ LLM │<br>
+    │ (Vercel) │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ (Render) │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ Llama 3.3│<br>
+    └──────────┘&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└────┬─────┘&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────────┘<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;┌──────────┐<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│  QDRANT  │<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ 20 Fair  │<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ Clauses  │<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────────┘
+  </div>
+  <p style="text-align:center;margin-top:16px;">
+    <span class="badge">React + Vite</span> <span class="badge">FastAPI + Python</span> <span class="badge">Groq Llama 3.3</span> <span class="badge">Qdrant Vector DB</span>
+  </p>
+</div>
+
+<!-- SLIDE 5: Features -->
+<div class="slide" id="s5">
+  <h2>✨ Key Features</h2>
+  <table>
+    <tr><th>Feature</th><th>Description</th></tr>
+    <tr><td>📄 Clause Extraction</td><td>Auto-segment PDF into individual clauses</td></tr>
+    <tr><td>🔍 Risk Scoring</td><td>0-100 score per clause (High/Medium/Low)</td></tr>
+    <tr><td>⚖️ Fair Comparison</td><td>RAG matching against 20 fair templates</td></tr>
+    <tr><td>💡 Alternatives</td><td>AI suggests rewritten fair versions</td></tr>
+    <tr><td>💬 Q&A Chat</td><td>Ask questions in plain English</td></tr>
+    <tr><td>📥 PDF Report</td><td>Download professional analysis report</td></tr>
+  </table>
+</div>
+
+<!-- SLIDE 6: AI Pipeline -->
+<div class="slide" id="s6">
+  <h2>🧠 The AI Pipeline</h2>
+  <div class="card" style="margin-bottom:16px;">
+    <h3>1. RAG — Retrieval-Augmented Generation</h3>
+    <p>Contract clause → Embedding vector → Search Qdrant → Retrieve similar fair clauses → LLM comparison</p>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <h3>2. LLM Risk Analysis (Groq Llama 3.3 70B)</h3>
+    <p>Identifies one-sided terms, hidden obligations, legal red flags, unfair penalties</p>
+  </div>
+  <div class="card">
+    <h3>3. Semantic Embeddings (TF-IDF + SVD)</h3>
+    <p>384-dimensional vectors · Cosine similarity · Lightweight — fits 512MB RAM</p>
+  </div>
+</div>
+
+<!-- SLIDE 7: Demo 1 -->
+<div class="slide" id="s7">
+  <h2>📸 Demo — Upload & Dashboard</h2>
+  <div class="two-col">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:64px;">📤</div>
+      <h3>Upload Page</h3>
+      <p>Drag & drop PDF · Progress tracking · Instant analysis</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:64px;">📊</div>
+      <h3>Risk Dashboard</h3>
+      <p>Overall score · High/Medium/Low breakdown · Assessment summary</p>
+    </div>
+  </div>
+  <p style="text-align:center;margin-top:20px;color:#64748b;">live at: contractguard-beryl.vercel.app</p>
+</div>
+
+<!-- SLIDE 8: Demo 2 -->
+<div class="slide" id="s8">
+  <h2>📸 Demo — Clause Analysis</h2>
+  <div class="two-col">
+    <div class="card" style="border-left:4px solid #ef4444;">
+      <h3 style="color:#ef4444;">⚠️ High Risk Clause</h3>
+      <p>"7 days notice period"</p>
+      <p style="font-size:16px;color:#94a3b8;margin-top:8px;">Flagged because fair standard is 30 days with pay-in-lieu option</p>
+    </div>
+    <div class="card" style="border-left:4px solid #22c55e;">
+      <h3 style="color:#22c55e;">✅ Fair Alternative</h3>
+      <p>"30 days written notice with pay in lieu option"</p>
+      <p style="font-size:16px;color:#94a3b8;margin-top:8px;">Sourced from our fair clause library via semantic search</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 9: Demo 3 -->
+<div class="slide" id="s9">
+  <h2>📸 Demo — Q&A & Report</h2>
+  <div class="two-col">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:64px;">💬</div>
+      <h3>Q&A Chat</h3>
+      <p>"What is my notice period?" → AI reads contract → Gives direct answer with citation</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:64px;">📥</div>
+      <h3>PDF Report</h3>
+      <p>Professional report with all clause analyses, risk scores, and recommendations</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10: Results -->
+<div class="slide" id="s10">
+  <h2>📊 Evaluation Results</h2>
+  <table>
+    <tr><th>Metric</th><th>Result</th></tr>
+    <tr><td>Test Contracts</td><td>5 (employment, service, NDA)</td></tr>
+    <tr><td>Risk Detection Accuracy</td><td class="highlight">85%</td></tr>
+    <tr><td>Fair Clause Match Rate</td><td class="highlight">78%</td></tr>
+    <tr><td>Avg. Analysis Time</td><td class="highlight">45 seconds</td></tr>
+    <tr><td>Q&A Relevance</td><td class="highlight">90%</td></tr>
+    <tr><td>PDF Extraction Success</td><td class="highlight">100%</td></tr>
+  </table>
+</div>
+
+<!-- SLIDE 11: Future -->
+<div class="slide" id="s11">
+  <h2>🚀 Future Scope</h2>
+  <table>
+    <tr><th>Idea</th><th>Impact</th></tr>
+    <tr><td>🇮🇳 Hindi & Regional Languages</td><td>10+ Indian languages</td></tr>
+    <tr><td>📱 Mobile App</td><td>React Native for iOS/Android</td></tr>
+    <tr><td>🏛️ DigiLocker Integration</td><td>Govt-verified document import</td></tr>
+    <tr><td>⚖️ Lawyer Marketplace</td><td>Connect users with verified lawyers</td></tr>
+    <tr><td>📚 100+ Fair Templates</td><td>Lease, loan, partnership agreements</td></tr>
+    <tr><td>🔐 Blockchain Audit Trail</td><td>Immutable analysis records</td></tr>
+  </table>
+</div>
+
+<!-- SLIDE 12: Thank You -->
+<div class="slide" id="s12" style="text-align:center;">
+  <div class="emoji">🙏</div>
+  <h1>Thank You!</h1>
+  <p style="font-size:28px;margin:20px 0;">🔗 <span class="highlight">contractguard-beryl.vercel.app</span></p>
+  <p style="font-size:22px;margin:16px 0;">🐙 <span class="highlight">github.com/abhisheksrisaai/contractguard</span></p>
+  <div style="margin-top:30px;">
+    <span class="badge">React</span> <span class="badge">FastAPI</span> <span class="badge">Groq AI</span> <span class="badge">Qdrant</span> <span class="badge">Python</span> <span class="badge">Docker</span>
+  </div>
+  <p style="font-size:26px;margin-top:40px;color:#e2e8f0;">Questions?</p>
+</div>
+
+<div class="counter" id="counter">1 / 12</div>
+<div class="nav">
+  <button onclick="prev()">◀ Prev</button>
+  <button onclick="next()">Next ▶</button>
+</div>
+
+<script>
+  let current = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = ((n % total) + total) % total;
+    slides[current].classList.add('active');
+    document.getElementById('counter').textContent = (current + 1) + ' / ' + total;
+  }
+
+  function next() { show(current + 1); }
+  function prev() { show(current - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  });
+</script>
+</body>
+</html>
