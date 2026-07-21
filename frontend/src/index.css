@@ -2,24 +2,104 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Variables / Design Tokens ─────────────────────────── */
+:root {
+  --color-primary: #0F172A;
+  --color-accent: #3B82F6;
+  --color-accent-hover: #2563EB;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-success: #10B981;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text: #1E293B;
+  --color-text-secondary: #64748B;
+  --color-border: #E2E8F0;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.08);
+  --shadow-button: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-[var(--color-bg)] text-[var(--color-text)] antialiased;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-slate-100;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
+/* ── Custom Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-slate-400; }
+
+/* ── Focus Ring ────────────────────────────────────────────── */
+*:focus-visible {
+  @apply outline-none ring-2 ring-accent-400 ring-offset-2;
+  border-radius: 4px;
 }
 
-/* Print-friendly */
+/* ── Selection ─────────────────────────────────────────────── */
+::selection {
+  @apply bg-accent-100 text-accent-900;
+}
+
+/* ── Print Styles ──────────────────────────────────────────── */
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+  .card { box-shadow: none; border: 1px solid #e2e8f0; }
+}
+
+/* ── Utility Classes ───────────────────────────────────────── */
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200 shadow-[var(--shadow-card)]
+           transition-all duration-200;
+  }
+  .card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+  .btn-primary {
+    @apply bg-accent-500 text-white font-semibold rounded-xl px-6 py-3
+           shadow-[var(--shadow-button)] hover:bg-accent-600
+           active:scale-[0.98] transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-accent-500;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-700 font-medium rounded-xl px-5 py-2.5
+           border border-slate-300 hover:bg-slate-50 hover:border-slate-400
+           active:scale-[0.98] transition-all duration-200;
+  }
+  .badge-risk-high {
+    @apply bg-red-50 text-red-700 border border-red-200 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .badge-risk-medium {
+    @apply bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .badge-risk-low {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out both;
+  }
+}
+
+/* ── Skeleton Loading ──────────────────────────────────────── */
+.skeleton {
+  @apply bg-slate-200 rounded animate-pulse;
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
 }
