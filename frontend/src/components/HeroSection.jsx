@@ -17,48 +17,48 @@ export default function HeroSection({ onUploadClick }) {
         }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-24 md:pt-24 md:pb-32">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-16 sm:pt-16 sm:pb-24 md:pt-24 md:pb-32">
+        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
 
           {/* ── Left: Text Content ──────── */}
-          <div className="space-y-6 md:space-y-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            <div className="inline-flex items-center gap-2 bg-accent-500/10 border border-accent-500/20 rounded-full px-4 py-1.5">
-              <Bot className="w-3.5 h-3.5 text-accent-400" />
-              <span className="text-xs font-medium text-accent-400 tracking-wide">
+          <div className="space-y-5 sm:space-y-6 md:space-y-8 text-center md:text-left animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="inline-flex items-center gap-2 bg-accent-500/10 border border-accent-500/20 rounded-full px-3 py-1 sm:px-4 sm:py-1.5">
+              <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-accent-400" />
+              <span className="text-[10px] sm:text-xs font-medium text-accent-400 tracking-wide">
                 AI-Powered Contract Analysis
               </span>
             </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight">
               Protect Yourself{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-400 to-accent-600">
                 Before You Sign
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-slate-400 max-w-lg leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-slate-400 max-w-lg mx-auto md:mx-0 leading-relaxed">
               Upload any employment or service contract. Our AI analyzes every clause for risks,
               compares against fair standards, and gives you a detailed report — all in under 60 seconds.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
               <button
                 onClick={onUploadClick}
-                className="btn-primary !py-3.5 !px-8 !text-base !rounded-2xl inline-flex items-center justify-center gap-2"
+                className="btn-primary !py-3 !sm:py-3.5 !px-6 !sm:px-8 !text-sm sm:!text-base !rounded-2xl inline-flex items-center justify-center gap-2"
               >
-                <Shield className="w-5 h-5" />
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                 Upload Your Contract
               </button>
               <a
                 href="#how-it-works"
-                className="btn-secondary !py-3.5 !px-8 !rounded-2xl inline-flex items-center justify-center gap-2 !border-slate-600 !text-slate-300 hover:!text-white hover:!border-slate-500"
+                className="btn-secondary !py-3 sm:!py-3.5 !px-6 sm:!px-8 !rounded-2xl inline-flex items-center justify-center gap-2 !border-slate-600 !text-slate-300 hover:!text-white hover:!border-slate-500"
               >
                 See How It Works
               </a>
             </div>
 
             {/* ── Trust Badges ──────────── */}
-            <div className="flex flex-wrap gap-4 pt-4">
+            <div className="flex flex-wrap gap-3 sm:gap-4 justify-center md:justify-start pt-2 sm:pt-4">
               {[
                 { icon: Lock, label: 'Secure & Private' },
                 { icon: Zap, label: 'Results in 60s' },

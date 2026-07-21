@@ -6,8 +6,8 @@ import { Github, ExternalLink, Shield } from 'lucide-react';
 export default function Footer() {
   return (
     <footer className="bg-navy-950 border-t border-white/5 no-print">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           {/* ── Logo + Disclaimer ────────── */}
           <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-accent-500" />

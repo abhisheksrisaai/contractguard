@@ -17,7 +17,7 @@ export default function StatsBar({ breakdown = {}, total }) {
   const clauses = total || Object.values(breakdown).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4">
       {STATS.map(({ key, icon: Icon, color, bg, border, ring }) => {
         const count = breakdown[key] || 0;
         const pct = clauses > 0 ? Math.round((count / clauses) * 100) : 0;

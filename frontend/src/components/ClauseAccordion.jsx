@@ -56,7 +56,7 @@ export default function ClauseAccordion({ clause }) {
       {/* ── Header ──────────────────────── */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50/80 transition-colors"
+        className="w-full flex items-center gap-2.5 sm:gap-4 px-3.5 sm:px-5 py-3.5 sm:py-4 text-left hover:bg-slate-50/80 transition-colors"
         aria-expanded={expanded}
       >
         <div className={`w-3 h-3 rounded-full shrink-0 ${config.dot} ${risk === 'High' ? 'animate-pulse-soft' : ''}`} />
@@ -89,7 +89,7 @@ export default function ClauseAccordion({ clause }) {
 
       {/* ── Expanded Content ────────────── */}
       {expanded && (
-        <div className="px-5 pb-5 space-y-5 border-t border-slate-100 pt-5 animate-slide-up">
+        <div className="px-3.5 sm:px-5 pb-4 sm:pb-5 space-y-4 sm:space-y-5 border-t border-slate-100 pt-4 sm:pt-5 animate-slide-up">
           {/* Original Text */}
           <Section icon={<BookOpen className="w-4 h-4" />} label="Original Clause">
             <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4 border border-slate-100 leading-relaxed italic whitespace-pre-line">

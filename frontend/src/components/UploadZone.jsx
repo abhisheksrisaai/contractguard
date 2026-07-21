@@ -73,7 +73,7 @@ export default function UploadZone({ onAnalysisComplete, onLoading, onError }) {
         aria-label="Upload PDF contract"
         onKeyDown={(e) => { if (e.key === 'Enter') handleClick(); }}
         className={`
-          relative border-2 border-dashed rounded-2xl p-10 md:p-12 text-center cursor-pointer
+          relative border-2 border-dashed rounded-2xl p-6 sm:p-10 md:p-12 text-center cursor-pointer
           transition-all duration-300 group
           ${dragOver
             ? 'border-accent-400 bg-accent-50/50 scale-[1.02] shadow-xl shadow-accent-500/10'

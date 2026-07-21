@@ -96,17 +96,17 @@ export default function App() {
           <HeroSection onUploadClick={scrollToUpload} />
 
           {/* How It Works */}
-          <section id="how-it-works" className="py-16 md:py-20 px-4 sm:px-6">
-            <div className="max-w-5xl mx-auto text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4">
+          <section id="how-it-works" className="py-12 sm:py-16 md:py-20 px-4 sm:px-6">
+            <div className="max-w-5xl mx-auto text-center mb-8 sm:mb-12">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 mb-3 sm:mb-4">
                 How It Works
               </h2>
-              <p className="text-slate-500 max-w-lg mx-auto">
+              <p className="text-sm sm:text-base text-slate-500 max-w-lg mx-auto">
                 Three simple steps to understand your contract before you sign.
               </p>
             </div>
 
-            <div className="max-w-4xl mx-auto grid md:grid-cols-3 gap-6">
+            <div className="max-w-4xl mx-auto grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
               {[
                 { step: '1', icon: '📄', title: 'Upload Contract', desc: 'Drag & drop your PDF employment or service contract. We accept files up to 10MB.' },
                 { step: '2', icon: '🤖', title: 'AI Analysis', desc: 'Our AI extracts every clause, scores risk levels, and compares against 20 fair templates.' },
@@ -125,13 +125,13 @@ export default function App() {
           </section>
 
           {/* Upload Section */}
-          <section className="py-12 px-4 sm:px-6 bg-white border-y border-slate-200">
+          <section className="py-10 sm:py-12 px-4 sm:px-6 bg-white border-y border-slate-200">
             <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 mb-2">
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 mb-2">
                   Ready to Analyze Your Contract?
                 </h2>
-                <p className="text-slate-500">
+                <p className="text-sm sm:text-base text-slate-500">
                   Upload a PDF and get results in under 60 seconds.
                 </p>
               </div>
@@ -176,7 +176,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
         <Navbar compact onReset={handleReset} showReset />
 
-        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8" id="results">
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8" id="results">
 
           {/* ── Error Banner ────────────── */}
           {error && (
@@ -191,28 +191,30 @@ export default function App() {
           )}
 
           {/* ── Risk Dashboard Card ──────── */}
-          <div className="card p-6 md:p-8 animate-slide-up">
-            <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
+          <div className="card p-5 sm:p-6 md:p-8 animate-slide-up">
+            <div className="flex flex-col lg:flex-row items-center gap-5 sm:gap-6 lg:gap-10">
               {/* Risk Meter */}
               <div className="relative">
                 <RiskMeter score={score} size="lg" />
               </div>
 
               {/* Info + Stats */}
-              <div className="flex-1 text-center lg:text-left space-y-4">
+              <div className="flex-1 text-center lg:text-left space-y-4 w-full">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900">
                     Contract Risk Analysis
                   </h2>
-                  <p className="text-slate-500 text-sm mt-1 max-w-lg">
+                  <p className="text-slate-500 text-sm mt-1 max-w-lg mx-auto lg:mx-0">
                     {analysis?.assessment || 'Your contract has been analyzed clause by clause.'}
                   </p>
                 </div>
 
-                <StatsBar breakdown={breakdown} total={analysis?.total_clauses} />
+                <div className="flex justify-center lg:justify-start">
+                  <StatsBar breakdown={breakdown} total={analysis?.total_clauses} />
+                </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center lg:justify-start">
                   <button onClick={handleDownload} disabled={downloading} className="btn-primary inline-flex items-center justify-center gap-2">
                     {downloading ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     {downloading ? 'Generating...' : 'Download PDF Report'}
