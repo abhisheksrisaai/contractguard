@@ -129,17 +129,35 @@ async def lifespan(app: FastAPI):
     # ── Auto-seed Qdrant if collection is empty ────────────────
     try:
         health = rag_service.health_check()
-        if health.get("collection_exists") and health.get("clause_count", 0) == 0:
-            logger.info("  Qdrant collection is empty. Running seed...")
-            from seed_db import main as seed_main
-            seed_main()
-            logger.info("  Seeding complete.")
-        elif not health.get("collection_exists"):
-            logger.info("  Qdrant collection missing. Creating and seeding...")
-            rag_service.create_collection(force_recreate=False)
-            from seed_db import main as seed_main
-            seed_main()
-            logger.info("  Seeding complete.")
+        needs_seed = (
+            not health.get("collection_exists") or
+            health.get("clause_count", 0) == 0
+        )
+        if needs_seed:
+            logger.info("  Qdrant collection empty/missing. Seeding fair clauses...")
+            import json
+            from pathlib import Path
+            clauses_path = Path(__file__).parent / "clause_library" / "fair_clauses.json"
+            if clauses_path.exists():
+                with open(clauses_path, "r", encoding="utf-8") as f:
+                    clauses = json.load(f)
+                rag_service.create_collection(force_recreate=False)
+                added = 0
+                for clause in clauses:
+                    try:
+                        rag_service.add_fair_clause(
+                            clause_type=clause.get("type", "general"),
+                            title=clause.get("title", ""),
+                            content=clause.get("content", ""),
+                        )
+                        added += 1
+                    except Exception as exc:
+                        logger.warning("  Seed failed for '%s': %s", clause.get("title", "")[:60], exc)
+                logger.info("  Seeded %d/%d fair clauses.", added, len(clauses))
+            else:
+                logger.warning("  fair_clauses.json not found — skipping seed.")
+        else:
+            logger.info("  Qdrant already seeded (%d clauses).", health.get("clause_count", 0))
     except Exception as e:
         logger.warning("  Auto-seed skipped: %s", e)
 
