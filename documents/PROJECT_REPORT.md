@@ -1,5 +1,25 @@
 # 📝 ContractGuard — Project Report
 
+> **AI-Powered Contract Risk Analysis Using Retrieval-Augmented Generation**
+
+---
+
+## 📋 Cover Page
+
+| | |
+|---|---|
+| **Project Title** | ContractGuard: AI-Powered Contract Risk Analysis |
+| **Submitted By** | [Your Name] |
+| **Roll Number** | [Your Roll Number] |
+| **Department** | [Your Department] |
+| **Institution** | [Your University/College] |
+| **Guide** | [Faculty Guide Name] |
+| **Date** | [Submission Date] |
+| **Live URL** | https://contractguard-beryl.vercel.app |
+| **GitHub** | https://github.com/abhisheksrisaai/contractguard |
+
+---
+
 ## AI-Powered Contract Risk Analysis Using Retrieval-Augmented Generation
 
 ---
@@ -242,6 +262,163 @@ Both services deploy automatically on push to the `main` branch:
 
 - **Frontend (Vercel):** Builds with `npm run build`, serves static assets from `frontend/dist`, SPA routing via `vercel.json`
 - **Backend (Render):** Docker build from `backend/Dockerfile`, Python 3.11-slim base, auto-seeds Qdrant on first deploy via FastAPI lifespan handler
+
+---
+
+### 5.4 System Analysis
+
+#### 5.4.1 Functional Requirements
+
+| ID | Requirement | Description |
+|----|------------|-------------|
+| FR1 | PDF Upload | Users can upload PDF contracts (max 10MB) |
+| FR2 | Text Extraction | System extracts readable text from PDFs |
+| FR3 | Clause Segmentation | Contract is split into individual clauses |
+| FR4 | Risk Analysis | Each clause receives a risk score (0-100) and level (High/Medium/Low) |
+| FR5 | Fair Clause Comparison | Clauses compared against 20 fair templates via RAG |
+| FR6 | Alternative Suggestions | AI generates fair alternative wording for risky clauses |
+| FR7 | Q&A Chat | Users can ask natural-language questions about their contract |
+| FR8 | PDF Report | Downloadable professional report with all analyses |
+| FR9 | Error Handling | Meaningful error messages for invalid files, rate limits, etc. |
+| FR10 | Health Monitoring | API health endpoint reporting all service statuses |
+
+#### 5.4.2 Non-Functional Requirements
+
+| ID | Requirement | Target |
+|----|------------|--------|
+| NFR1 | Response Time | < 60 seconds for full analysis |
+| NFR2 | Availability | 99% uptime (free-tier dependent) |
+| NFR3 | Security | API keys via environment variables, CORS restricted |
+| NFR4 | Scalability | Stateless API, horizontally scalable |
+| NFR5 | Usability | Intuitive drag-and-drop interface, no training required |
+| NFR6 | Maintainability | Modular codebase with clear separation of concerns |
+| NFR7 | Cost | Zero infrastructure cost (all free-tier services) |
+
+#### 5.4.3 Feasibility Study
+
+| Factor | Assessment | Rationale |
+|--------|-----------|-----------|
+| **Technical** | ✅ Feasible | All technologies are mature and well-documented (FastAPI, React, Groq, Qdrant) |
+| **Operational** | ✅ Feasible | Cloud-hosted on free tiers; no on-premise infrastructure needed |
+| **Economic** | ✅ Feasible | $0/month operational cost using free tiers of Groq, Render, Vercel |
+| **Legal** | ⚠️ Advisory | System provides guidance, not legal advice; disclaimer required |
+| **Schedule** | ✅ Feasible | MVP developed in 7 days with one developer |
+
+#### 5.4.4 Use Case Diagram
+
+```
+                         ┌──────────────────────┐
+                         │   ContractGuard      │
+                         │                      │
+    ┌────────┐           │  ┌────────────────┐  │
+    │  User  │──────────▶│  │ Upload PDF     │  │
+    └────────┘           │  └───────┬────────┘  │
+                         │          │           │
+                         │          ▼           │
+                         │  ┌────────────────┐  │
+                         │  │ Extract Text   │  │
+                         │  └───────┬────────┘  │
+                         │          │           │
+                         │          ▼           │
+                         │  ┌────────────────┐  │
+                         │  │ Segment Clauses│  │
+                         │  └───────┬────────┘  │
+                         │          │           │
+                         │    ┌─────┴─────┐     │
+                         │    ▼           ▼     │
+                         │ ┌──────┐  ┌──────┐   │
+                         │ │ LLM  │  │ RAG  │   │
+                         │ │Risk  │  │Match │   │
+                         │ └──┬───┘  └──┬───┘   │
+                         │    │         │       │
+                         │    └────┬────┘       │
+                         │         ▼            │
+                         │  ┌────────────────┐  │
+                         │  │ Display Results│◀─┤─── View Results
+                         │  └───────┬────────┘  │
+                         │          │           │
+    ┌────────┐           │          ▼           │
+    │  User  │◀──────────│  ┌────────────────┐  │
+    └────────┘           │  │ Q&A + Report   │  │
+                         │  └────────────────┘  │
+                         └──────────────────────┘
+```
+
+#### 5.4.5 Data Flow Diagram (Level 0)
+
+```
+   ┌──────┐     PDF      ┌──────────────┐    API Call    ┌──────────┐
+   │ User │──────────────▶│  Frontend    │──────────────▶│  Backend │
+   │      │◀──────────────│  (React)     │◀──────────────│ (FastAPI)│
+   └──────┘   Analysis    └──────────────┘   JSON Result  └────┬─────┘
+                                                               │
+                          ┌────────────────────────────────────┤
+                          │                                    │
+                          ▼                                    ▼
+                   ┌──────────────┐                    ┌──────────────┐
+                   │  Groq LLM    │                    │  Qdrant DB   │
+                   │  (Cloud)     │                    │  (Vector)    │
+                   └──────────────┘                    └──────────────┘
+```
+
+---
+
+### 5.5 Deployment
+
+#### 5.5.1 Production Architecture
+
+The system is deployed using a serverless/cloud-native architecture across two platforms:
+
+| Component | Platform | Plan | Build Trigger |
+|-----------|----------|------|---------------|
+| Frontend (React) | Vercel | Free (Hobby) | Auto-deploy on push to `main` |
+| Backend (FastAPI) | Render | Free (Individual) | Auto-deploy on push to `main` |
+| Vector DB (Qdrant) | Render (in-container) | Free | Embedded in backend container |
+| LLM (Groq) | Groq Cloud | Free tier | N/A (API call) |
+
+#### 5.5.2 CI/CD Pipeline
+
+```
+  GitHub (main branch)
+       │
+       ├──────────────────▶ Vercel detects change
+       │                    ├─ npm install
+       │                    ├─ npm run build
+       │                    └─ Deploy to CDN (contractguard-beryl.vercel.app)
+       │
+       └──────────────────▶ Render detects change
+                             ├─ Docker build (backend/Dockerfile)
+                             ├─ Push image to registry
+                             ├─ Pull & run container
+                             ├─ startup.sh → auto-seed Qdrant
+                             └─ Deploy (contractguard-api.onrender.com)
+```
+
+#### 5.5.3 Environment Configuration
+
+All sensitive configuration is managed through environment variables:
+
+| Variable | Scope | Storage |
+|----------|-------|---------|
+| `GROQ_API_KEY` | Backend | Render dashboard (encrypted, sync:false) |
+| `QDRANT_MODE` | Backend | Render dashboard |
+| `FRONTEND_URL` | Backend | Render dashboard (CORS) |
+| `VITE_API_URL` | Frontend | Vercel dashboard (build-time embed) |
+
+**Security measures:**
+- No API keys in source code or `.env` files (`.env` is gitignored)
+- Only `.env.example` with placeholder values is committed
+- CORS restricted to Vercel deployment domain via regex matching
+- Rate limiting (5 req/min for analyze, 10 req/min for ask/report)
+
+#### 5.5.4 Docker Configuration
+
+The backend Docker image (`backend/Dockerfile`) is optimized for the free tier:
+
+- **Base:** Python 3.11-slim (~45MB base)
+- **System deps:** Minimal WeasyPrint runtime libraries only (no -dev packages)
+- **Python deps:** Core dependencies only; optional `sentence-transformers` replaced with lightweight `scikit-learn` TF-IDF
+- **Result:** ~350MB container, fits within 512MB Render free tier RAM limit
 
 ---
 
