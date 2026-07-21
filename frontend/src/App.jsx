@@ -138,7 +138,7 @@ export default function App() {
               <UploadZone
                 onAnalysisComplete={handleAnalysisComplete}
                 onLoading={setLoading}
-                onError={(e) => { setError(e); setLoading(false); addToast(e, 'error'); }}
+                onError={(e) => { setError(e); setLoading(false); if (e) addToast(e, 'error'); }}
               />
             </div>
           </section>

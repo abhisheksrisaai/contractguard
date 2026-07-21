@@ -27,6 +27,9 @@ export default function Toast({ message, type = 'info', duration = 6000, onClose
   const [visible, setVisible] = useState(true);
   const Icon = ICONS[type] || ICONS.info;
 
+  // Guard: don't render if message is empty/null/undefined
+  if (!message || !message.trim()) return null;
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);
