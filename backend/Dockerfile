@@ -27,12 +27,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies first (layer caching)
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (startup.sh must be executable)
-COPY . .
+COPY backend/ .
 RUN chmod +x /app/startup.sh
 
 # Create directories for uploads and reports
