@@ -23,7 +23,14 @@ from qdrant_client.models import (
     Record,
     VectorParams,
 )
-from sentence_transformers import SentenceTransformer
+
+# Try to import sentence-transformers; fall back to TF-IDF if unavailable
+try:
+    from sentence_transformers import SentenceTransformer
+    HAS_SENTENCE_TRANSFORMERS = True
+except ImportError:
+    SentenceTransformer = None  # type: ignore
+    HAS_SENTENCE_TRANSFORMERS = False
 
 from app.core.config import settings
 
@@ -95,8 +102,14 @@ class RAGService:
     @property
     def encoder(self):
         """Lazy-load the sentence-transformer embedding model.
-        Returns None if model fails to load, triggering TF-IDF fallback."""
+        Returns None if model fails to load or package not installed,
+        triggering TF-IDF fallback."""
         if self._encoder is None:
+            if not HAS_SENTENCE_TRANSFORMERS:
+                logger.info("sentence-transformers not installed. Using TF-IDF fallback.")
+                self._encoder = None
+                return None
+
             model_name = settings.EMBEDDING_MODEL.replace("sentence-transformers/", "")
             logger.info("Loading embedding model: %s ...", model_name)
 
@@ -118,9 +131,9 @@ class RAGService:
 
             if not has_weights:
                 logger.warning(
-                    "Model not cached. Using TF-IDF fallback. "
-                    "Run 'python -c \"from sentence_transformers import SentenceTransformer; "
-                    "SentenceTransformer(\\\"%s\\\")\"' to pre-download.",
+                    "Model not cached. Using TF-IDF fallback. Run:"
+                    " python -c 'from sentence_transformers import SentenceTransformer;"
+                    " SentenceTransformer(\"%s\")'",
                     settings.EMBEDDING_MODEL,
                 )
                 self._encoder = None

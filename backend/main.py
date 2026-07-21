@@ -280,7 +280,7 @@ async def health_check():
             "groq": groq_status,
             "qdrant": rag_health.get("qdrant_status", "unknown"),
             "fair_clauses_count": rag_health.get("clause_count", 0),
-            "embedding_model": "all-MiniLM-L6-v2 (or TF-IDF fallback)",
+            "embedding_model": "TF-IDF + SVD (lightweight fallback)",
             "pdf_extractor": "PyMuPDF + pdfplumber",
             "report_generator": "Jinja2 + WeasyPrint",
         },

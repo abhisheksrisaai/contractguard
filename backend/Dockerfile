@@ -3,19 +3,16 @@
 FROM python:3.11-slim
 
 # ── System dependencies for WeasyPrint PDF generation ───────────
-# libpango, libharfbuzz, libgdk-pixbuf, cairo, and fontconfig
+# Runtime libs only (no -dev packages) to keep image small
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \
-    libharfbuzz-subset0 \
     libgdk-pixbuf-2.0-0 \
     libgdk-pixbuf2.0-common \
     libcairo2 \
     libpangocairo-1.0-0 \
-    libffi-dev \
-    libpango1.0-dev \
-    libcairo2-dev \
+    libffi8 \
     fonts-liberation \
     fonts-dejavu-core \
     fontconfig \
