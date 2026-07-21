@@ -126,22 +126,29 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("  Qdrant:      unavailable (%s)", e)
 
-    # ── Auto-seed Qdrant if collection is empty ────────────────
+    # ── Auto-seed Qdrant if collection needs seeding ─────────
     try:
+        import json
+        from pathlib import Path
+        clauses_path = Path(__file__).parent / "clause_library" / "fair_clauses.json"
+        json_clause_count = 0
+        if clauses_path.exists():
+            with open(clauses_path, "r", encoding="utf-8") as f:
+                json_clause_count = len(json.load(f))
+
         health = rag_service.health_check()
+        db_count = health.get("clause_count", 0)
         needs_seed = (
             not health.get("collection_exists") or
-            health.get("clause_count", 0) == 0
+            db_count == 0 or
+            db_count != json_clause_count
         )
         if needs_seed:
-            logger.info("  Qdrant collection empty/missing. Seeding fair clauses...")
-            import json
-            from pathlib import Path
-            clauses_path = Path(__file__).parent / "clause_library" / "fair_clauses.json"
+            logger.info("  Qdrant needs seeding (DB: %d, JSON: %d). Seeding...", db_count, json_clause_count)
             if clauses_path.exists():
                 with open(clauses_path, "r", encoding="utf-8") as f:
                     clauses = json.load(f)
-                rag_service.create_collection(force_recreate=False)
+                rag_service.create_collection(force_recreate=True)
                 added = 0
                 for clause in clauses:
                     try:
@@ -157,7 +164,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.warning("  fair_clauses.json not found — skipping seed.")
         else:
-            logger.info("  Qdrant already seeded (%d clauses).", health.get("clause_count", 0))
+            logger.info("  Qdrant up-to-date (%d clauses).", db_count)
     except Exception as e:
         logger.warning("  Auto-seed skipped: %s", e)
 

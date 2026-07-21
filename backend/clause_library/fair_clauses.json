@@ -48,5 +48,56 @@
     "type": "warranty",
     "title": "Balanced Warranty Terms",
     "content": "Consultant warrants that (a) the Services shall be performed in a professional and workmanlike manner consistent with industry standards, (b) Consultant has the full right and authority to enter into and perform this Agreement, and (c) the Work Product, when delivered, shall materially conform to the specifications set forth in the applicable statement of work. EXCEPT AS EXPRESSLY STATED HEREIN, THE SERVICES AND WORK PRODUCT ARE PROVIDED 'AS IS,' AND CONSULTANT DISCLAIMS ALL IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Client warrants that it has the authority to grant Consultant access to any Client systems or data necessary to perform the Services."
+  },
+
+  {
+    "type": "employment_notice",
+    "title": "Fair Employee Notice Period",
+    "content": "The Employee shall provide thirty (30) days written notice to the Employer prior to resignation. The Employer may, at its sole discretion, waive the notice period in whole or in part or provide pay in lieu of notice calculated at the Employee's base salary rate. During the notice period, the Employee shall continue to perform their duties and cooperate in the orderly transition of responsibilities. The Employer shall not withhold termination documents, relieving letters, or final settlement on account of the notice period if the Employee has completed at least fifteen (15) days of active service during the notice period."
+  },
+  {
+    "type": "employment_termination",
+    "title": "Fair Employer Termination Procedure",
+    "content": "The Employer may terminate this Agreement for cause immediately upon written notice in cases of gross misconduct, fraud, willful insubordination, or material breach of employment terms. For performance-related termination, the Employer shall (a) provide a written warning specifying the performance deficiencies, (b) allow the Employee a reasonable improvement period of not less than thirty (30) days, and (c) provide reasonable support and feedback during the improvement period. Termination without cause shall require thirty (30) days written notice or pay in lieu of notice. In all cases, the Employee shall receive a written statement of reasons for termination."
+  },
+  {
+    "type": "employment_transfer",
+    "title": "Fair Employee Transfer Policy",
+    "content": "The Employer may transfer the Employee to an alternative location or role upon providing at least fifteen (15) days written notice. For transfers exceeding fifty (50) kilometers from the current work location, the Employer shall provide a reasonable relocation allowance covering moving expenses and temporary accommodation for up to seven (7) days. The Employee has the right to decline a transfer on valid grounds including proven medical hardship, caregiving responsibilities for immediate family members, or lack of comparable facilities at the new location for dependents with special needs. No adverse action shall be taken against an Employee who reasonably declines a transfer."
+  },
+  {
+    "type": "employment_gratuity",
+    "title": "Fair Employee Gratuity Terms",
+    "content": "The Employer shall pay gratuity to the Employee in accordance with the Payment of Gratuity Act, 1972, or applicable local law, whichever is more favorable to the Employee. Gratuity shall be calculated at fifteen (15) days wages for each completed year of service, based on the last drawn basic salary plus dearness allowance. Payment of gratuity shall be made within thirty (30) days of the Employee's last working day, regardless of the reason for separation. Gratuity payment shall not be conditioned upon the Employer receiving payment from any client, customer, or third party. Interest at 10% per annum shall accrue on delayed gratuity payments beyond the thirty-day period."
+  },
+  {
+    "type": "employment_confidentiality",
+    "title": "Fair Employee Confidentiality Clause",
+    "content": "The Employee shall maintain the confidentiality of all proprietary and trade secret information of the Employer for a period of two (2) years following termination of employment. Confidential Information does not include information that (a) is or becomes publicly available through no fault of the Employee, (b) was known to the Employee prior to employment as evidenced by written records, or (c) the Employee is required to disclose by law, court order, or governmental authority. Nothing in this clause shall prevent the Employee from reporting suspected violations of law to any government agency, making protected whistleblower disclosures, or cooperating in any government investigation."
+  },
+  {
+    "type": "employment_noncompete",
+    "title": "Fair Employee Non-Compete Clause",
+    "content": "During employment and for a period of six (6) months following termination, the Employee shall not directly or indirectly engage in any business that is in direct competition with the Employer's core business within the same geographic territory where the Employee performed services. During the restricted period, the Employer shall pay the Employee compensation equal to fifty percent (50%) of the Employee's last drawn monthly base salary, paid monthly in arrears. The non-compete restriction shall apply only to competitors specifically identified in the employment letter, not to all businesses in the Employer's industry. This clause shall not restrict the Employee from accepting employment with a non-competitor or in a different business vertical."
+  },
+  {
+    "type": "employment_ip",
+    "title": "Fair Employee IP Assignment",
+    "content": "The Employee agrees to assign to the Employer all inventions, discoveries, improvements, and works of authorship created within the scope of employment and using the Employer's resources during working hours ('Work Product'). The Employee retains full ownership of any intellectual property (a) developed entirely on the Employee's own time, (b) without the use of the Employer's equipment, supplies, facilities, or trade secret information, and (c) that does not relate to the Employer's business or actual or anticipated research. The Employer shall not claim ownership over the Employee's pre-existing intellectual property unless such IP is specifically contributed to a project as documented in writing."
+  },
+  {
+    "type": "employment_indemnity",
+    "title": "Fair Employee Indemnity Clause",
+    "content": "The Employer agrees to indemnify and hold harmless the Employee against all claims, liabilities, losses, damages, and reasonable legal expenses arising from the Employee's performance of duties within the scope of employment, except where such claims result from the Employee's gross negligence, willful misconduct, or fraud. The Employee's obligation to indemnify the Employer is limited to cases of proven gross negligence or willful misconduct and shall not exceed the greater of (a) three (3) months of the Employee's base salary, or (b) the amount covered under the Employer's applicable insurance policy. The Employer shall maintain adequate directors and officers or professional liability insurance covering employees."
+  },
+  {
+    "type": "employment_salary",
+    "title": "Fair Employee Salary Payment Terms",
+    "content": "The Employer shall pay the Employee's monthly salary on or before the seventh (7th) day of each calendar month. Salary shall be paid via electronic bank transfer to the Employee's designated bank account. The Employer shall provide the Employee with a detailed written salary statement showing gross salary, all deductions (tax, provident fund, professional tax, insurance), and net salary paid. Any unauthorized deduction from salary is prohibited. In the event of salary payment delay exceeding seven (7) calendar days, simple interest at the rate of 1% per month shall accrue on the outstanding amount from the due date until payment is made. Interest on delayed salary shall be paid along with the next month's salary."
+  },
+  {
+    "type": "employment_hours",
+    "title": "Fair Employee Working Hours Clause",
+    "content": "The Employee's normal working hours shall not exceed forty-eight (48) hours per week, with a maximum of nine (9) hours per day exclusive of rest intervals. The Employee shall be entitled to a rest break of at least thirty (30) minutes after every five (5) hours of continuous work. Any work performed beyond the normal working hours shall be treated as overtime and compensated at twice (2x) the Employee's regular hourly rate. Overtime shall be voluntary and not mandatory. The Employee is entitled to one (1) full rest day per week, typically Sunday. The total overtime hours in any quarter shall not exceed one hundred twenty-five (125) hours. The Employer shall maintain accurate records of all hours worked and overtime paid."
   }
 ]

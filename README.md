@@ -2,6 +2,8 @@
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/abhisheksrisaai/contractguard)
 
+> **🌟 Try it now:** [**contractguard-beryl.vercel.app**](https://contractguard-beryl.vercel.app)
+
 ContractGuard analyzes legal contracts using AI to identify risks, suggest fair alternatives, and generate downloadable reports. Built with FastAPI, React, Groq LLM, and Qdrant vector search.
 
 ---
@@ -11,7 +13,7 @@ ContractGuard analyzes legal contracts using AI to identify risks, suggest fair 
 - 📄 **PDF Upload & Text Extraction** — PyMuPDF + pdfplumber pipeline
 - 🔍 **Clause-Level Risk Analysis** — Groq LLM identifies risky language per clause
 - 📊 **Risk Scoring & Breakdown** — Overall score + High/Medium/Low risk counts
-- 🧠 **Fair Clause Comparison (RAG)** — Semantic search against a curated fair-clause library
+- 🧠 **Fair Clause Comparison (RAG)** — Semantic search against 20 curated fair clauses (10 general + 10 employment-specific)
 - 💬 **Contract Q&A Chat** — Ask questions about any contract
 - 📥 **Professional PDF Reports** — Jinja2 + WeasyPrint report generation
 - ⚡ **Rate Limiting & Logging** — Production-hardened middleware
