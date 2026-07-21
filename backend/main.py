@@ -190,11 +190,9 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
-        # Vercel production domains
-        "https://contractguard.vercel.app",
-        "https://contractguard-git-*.vercel.app",
-        "https://*.vercel.app",
+        "https://contractguard-beryl.vercel.app",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
