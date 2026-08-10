@@ -1,109 +1,42 @@
-import { Shield, Zap, Lock, Bot } from 'lucide-react';
+import { Shield, ArrowRight, Sparkles } from 'lucide-react';
 
-/**
- * HeroSection — Landing page hero with headline, trust badges, and upload CTA.
- *
- * @param {Object} props
- * @param {Function} props.onUploadClick — Scrolls to / opens upload zone
- */
-export default function HeroSection({ onUploadClick }) {
+export default function HeroSection({ onUploadClick, onHowItWorksClick }) {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950">
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: `radial-gradient(circle at 25px 25px, white 1px, transparent 0)`,
-          backgroundSize: '50px 50px',
-        }}
-      />
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-16 sm:pt-16 sm:pb-24 md:pt-24 md:pb-32">
-        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-
-          {/* ── Left: Text Content ──────── */}
-          <div className="space-y-5 sm:space-y-6 md:space-y-8 text-center md:text-left animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            <div className="inline-flex items-center gap-2 bg-accent-500/10 border border-accent-500/20 rounded-full px-3 py-1 sm:px-4 sm:py-1.5">
-              <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-accent-400" />
-              <span className="text-[10px] sm:text-xs font-medium text-accent-400 tracking-wide">
-                AI-Powered Contract Analysis
-              </span>
-            </div>
-
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight">
-              Protect Yourself{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-400 to-accent-600">
-                Before You Sign
-              </span>
-            </h1>
-
-            <p className="text-base sm:text-lg md:text-xl text-slate-400 max-w-lg mx-auto md:mx-0 leading-relaxed">
-              Upload any employment or service contract. Our AI analyzes every clause for risks,
-              compares against fair standards, and gives you a detailed report — all in under 60 seconds.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
-              <button
-                onClick={onUploadClick}
-                className="btn-primary !py-3 !sm:py-3.5 !px-6 !sm:px-8 !text-sm sm:!text-base !rounded-2xl inline-flex items-center justify-center gap-2"
-              >
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                Upload Your Contract
-              </button>
-              <a
-                href="#how-it-works"
-                className="btn-secondary !py-3 sm:!py-3.5 !px-6 sm:!px-8 !rounded-2xl inline-flex items-center justify-center gap-2 !border-slate-600 !text-slate-300 hover:!text-white hover:!border-slate-500"
-              >
-                See How It Works
-              </a>
-            </div>
-
-            {/* ── Trust Badges ──────────── */}
-            <div className="flex flex-wrap gap-3 sm:gap-4 justify-center md:justify-start pt-2 sm:pt-4">
-              {[
-                { icon: Lock, label: 'Secure & Private' },
-                { icon: Zap, label: 'Results in 60s' },
-                { icon: Bot, label: 'AI-Powered' },
-                { icon: Shield, label: '100% Free' },
-              ].map(({ icon: Icon, label }) => (
-                <div key={label} className="flex items-center gap-2 text-slate-400">
-                  <Icon className="w-4 h-4 text-accent-500" />
-                  <span className="text-xs font-medium">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Right: Illustration Area ── */}
-          <div className="hidden md:flex justify-center animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <div className="relative w-80 h-80 lg:w-96 lg:h-96">
-              {/* Decorative circles */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent-500/10 to-accent-700/5 animate-pulse-soft" />
-              <div className="absolute inset-8 rounded-full border-2 border-dashed border-accent-500/20 animate-spin" style={{ animationDuration: '20s' }} />
-              <div className="absolute inset-16 rounded-full bg-gradient-to-br from-accent-500/20 to-transparent" />
-
-              {/* Center shield icon */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-24 h-24 rounded-2xl bg-navy-800 border border-accent-500/30 shadow-2xl shadow-accent-500/10 flex items-center justify-center">
-                  <Shield className="w-12 h-12 text-accent-400" />
-                </div>
-              </div>
-
-              {/* Floating document cards */}
-              <div className="absolute -top-2 left-4 bg-navy-800 border border-white/5 rounded-xl p-3 shadow-xl animate-slide-up" style={{ animationDelay: '0.5s' }}>
-                <div className="w-24 h-3 bg-slate-600 rounded mb-2" />
-                <div className="w-20 h-2 bg-slate-700 rounded mb-1" />
-                <div className="w-16 h-2 bg-slate-700 rounded" />
-              </div>
-              <div className="absolute -bottom-2 right-4 bg-accent-500 text-white text-xs font-bold rounded-full px-3 py-1 shadow-lg shadow-accent-500/30 animate-slide-up" style={{ animationDelay: '0.7s' }}>
-                Risk Score: 85
-              </div>
-            </div>
-          </div>
-        </div>
+    <section className="relative overflow-hidden bg-black pt-8 pb-12 sm:pt-12 sm:pb-16 md:pt-16 md:pb-24">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-accent-500/5 rounded-full blur-[120px]" />
       </div>
 
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[var(--color-bg)] to-transparent" />
+      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
+        {/* Pill badge */}
+        <div className="inline-flex items-center gap-2 bg-accent-500/10 border border-accent-500/20 rounded-full px-4 py-1.5 mb-6 sm:mb-8 animate-slide-up">
+          <Sparkles className="w-3.5 h-3.5 text-accent-400" />
+          <span className="text-xs sm:text-sm font-medium text-accent-400">AI-Powered Contract Review</span>
+        </div>
+
+        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-white leading-[1.05] tracking-tight mb-5 sm:mb-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          Never sign a risky<br className="hidden sm:block" /> contract again.
+        </h1>
+
+        <p className="text-base sm:text-lg text-white/40 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed animate-slide-up" style={{ animationDelay: '0.15s' }}>
+          Upload any employment, supplier, works or partner agreement. AI reviews every clause, checks enforceability, benchmarks against fair standards and tells you exactly what to negotiate — in under 60 seconds.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          <button onClick={onUploadClick} className="btn-primary !py-3.5 !px-8 !text-base inline-flex items-center justify-center gap-2">
+            <Shield className="w-5 h-5" />
+            Analyze My Contract
+          </button>
+          <button onClick={onHowItWorksClick} className="btn-secondary !py-3.5 !px-8 inline-flex items-center justify-center gap-2">
+            See how it works
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-xs text-white/30 animate-slide-up" style={{ animationDelay: '0.25s' }}>
+          Free &bull; No signup &bull; Your document is never stored
+        </p>
+      </div>
     </section>
   );
 }

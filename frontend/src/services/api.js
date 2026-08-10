@@ -1,53 +1,35 @@
 import axios from 'axios';
 
-// ── Determine API Base URL ────────────────────────────────────
-// In production (Vercel), VITE_API_URL is set to the Render backend URL.
-// In development (localhost), we proxy /api through Vite to localhost:8000.
 const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
   : '/api';
 
-// ── Axios Instance ──────────────────────────────────────────────
 const api = axios.create({
   baseURL: API_BASE,
-  timeout: 30000, // 30s default timeout
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Response Interceptor ────────────────────────────────────────
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const originalRequest = err.config;
-
-    // Extract meaningful message
     const detail = err.response?.data?.detail || '';
     const msg = detail || err.message || 'An unexpected error occurred.';
-
-    // Build enhanced error
     const enhanced = new Error(msg);
     enhanced.status = err.response?.status;
     enhanced.isTimeout = err.code === 'ECONNABORTED';
     enhanced.isNetwork = !err.response && err.code !== 'ECONNABORTED';
     enhanced.isRateLimited = err.response?.status === 429;
 
-    // Retry logic for 5xx errors (up to 2 retries)
-    if (
-      err.response?.status >= 500 &&
-      err.response?.status < 600 &&
-      !originalRequest._retryCount
-    ) {
+    if (err.response?.status >= 500 && err.response?.status < 600 && !originalRequest._retryCount) {
       originalRequest._retryCount = 1;
-      await new Promise((r) => setTimeout(r, 1500)); // 1.5s backoff
+      await new Promise((r) => setTimeout(r, 1500));
       return api(originalRequest);
     }
-
-    if (
-      err.response?.status >= 500 &&
-      originalRequest._retryCount === 1
-    ) {
+    if (err.response?.status >= 500 && originalRequest._retryCount === 1) {
       originalRequest._retryCount = 2;
-      await new Promise((r) => setTimeout(r, 3000)); // 3s backoff
+      await new Promise((r) => setTimeout(r, 3000));
       return api(originalRequest);
     }
 
@@ -55,20 +37,24 @@ api.interceptors.response.use(
   }
 );
 
-// ── API Functions ──────────────────────────────────────────────
-
 /**
  * Upload a PDF file for full contract analysis.
- * Returns analysis JSON with clauses, scores, etc.
- * Supports progress tracking callback.
+ * @param {File} file
+ * @param {Object} [opts]
+ * @param {string} [opts.contractType] - optional contract type override
+ * @param {string} [opts.model] - optional model override
+ * @param {Function} [opts.onProgress] - progress callback (0-100)
  */
-export async function analyzeContract(file, onProgress) {
+export async function analyzeContract(file, opts = {}) {
+  const { contractType, model, onProgress } = opts;
   const formData = new FormData();
   formData.append('file', file);
+  if (contractType) formData.append('contract_type_override', contractType);
+  if (model) formData.append('model', model);
 
   const { data } = await api.post('/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000, // 2 min for full analysis
+    timeout: 180000,
     onUploadProgress: (e) => {
       if (onProgress && e.total) {
         onProgress(Math.round((e.loaded / e.total) * 100));
@@ -78,9 +64,6 @@ export async function analyzeContract(file, onProgress) {
   return data;
 }
 
-/**
- * Ask a question about a contract.
- */
 export async function askQuestion(contractText, question) {
   const { data } = await api.post('/ask', {
     contract_text: contractText,
@@ -89,16 +72,22 @@ export async function askQuestion(contractText, question) {
   return data;
 }
 
-/**
- * Generate & download a PDF report from analysis data.
- * Returns a blob that can be saved as a file.
- */
 export async function downloadReport(analysisData) {
   const payload = {
     clauses: analysisData.clauses || [],
     overall_score: analysisData.overall_score || 0,
     breakdown: analysisData.risk_breakdown || { High: 0, Medium: 0, Low: 0 },
     assessment: analysisData.assessment || '',
+    // Forward all new analysis keys for enriched PDF
+    contract_type: analysisData.contract_type || undefined,
+    five_c: analysisData.five_c || undefined,
+    red_flags: analysisData.red_flags || undefined,
+    negotiation_opportunities: analysisData.negotiation_opportunities || undefined,
+    missing_clauses: analysisData.missing_clauses || undefined,
+    recommended_action: analysisData.recommended_action || undefined,
+    confidence: analysisData.confidence || undefined,
+    executive_summary: analysisData.executive_summary || undefined,
+    findings: analysisData.findings || undefined,
   };
 
   const response = await api.post('/report', payload, {
@@ -106,12 +95,10 @@ export async function downloadReport(analysisData) {
     timeout: 60000,
   });
 
-  // Extract filename from Content-Disposition header
   const disposition = response.headers['content-disposition'] || '';
   const match = disposition.match(/filename="?(.+?)"?$/);
   const filename = match ? match[1] : 'contractguard_report.pdf';
 
-  // Trigger download
   const url = window.URL.createObjectURL(response.data);
   const link = document.createElement('a');
   link.href = url;
@@ -122,9 +109,6 @@ export async function downloadReport(analysisData) {
   window.URL.revokeObjectURL(url);
 }
 
-/**
- * Check backend health.
- */
 export async function checkHealth() {
   const { data } = await api.get('/health');
   return data;

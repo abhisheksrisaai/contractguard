@@ -49,7 +49,6 @@
     "title": "Balanced Warranty Terms",
     "content": "Consultant warrants that (a) the Services shall be performed in a professional and workmanlike manner consistent with industry standards, (b) Consultant has the full right and authority to enter into and perform this Agreement, and (c) the Work Product, when delivered, shall materially conform to the specifications set forth in the applicable statement of work. EXCEPT AS EXPRESSLY STATED HEREIN, THE SERVICES AND WORK PRODUCT ARE PROVIDED 'AS IS,' AND CONSULTANT DISCLAIMS ALL IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Client warrants that it has the authority to grant Consultant access to any Client systems or data necessary to perform the Services."
   },
-
   {
     "type": "employment_notice",
     "title": "Fair Employee Notice Period",
@@ -99,5 +98,155 @@
     "type": "employment_hours",
     "title": "Fair Employee Working Hours Clause",
     "content": "The Employee's normal working hours shall not exceed forty-eight (48) hours per week, with a maximum of nine (9) hours per day exclusive of rest intervals. The Employee shall be entitled to a rest break of at least thirty (30) minutes after every five (5) hours of continuous work. Any work performed beyond the normal working hours shall be treated as overtime and compensated at twice (2x) the Employee's regular hourly rate. Overtime shall be voluntary and not mandatory. The Employee is entitled to one (1) full rest day per week, typically Sunday. The total overtime hours in any quarter shall not exceed one hundred twenty-five (125) hours. The Employer shall maintain accurate records of all hours worked and overtime paid."
+  },
+  {
+    "type": "supplier_payment",
+    "title": "Fair Supplier Payment Terms",
+    "content": "Buyer shall pay Supplier the invoiced amount within thirty (30) days of receipt of Goods Receipt Note (GRN), inspection acceptance, and a valid tax invoice, whichever is later. Supplier shall submit invoices with GSTIN, HSN code, PO reference, and supporting documents as specified in the Purchase Order. Retention money of five percent (5%) of each invoice shall be withheld until successful completion of all delivery obligations and expiry of the defect liability period. Retention shall be released within thirty (30) days of DLP completion certificate issuance. Late payments beyond the thirty-day credit period shall accrue simple interest at the rate of one percent (1%) per month on the outstanding amount."
+  },
+  {
+    "type": "supplier_delivery",
+    "title": "Fair Supplier Delivery Terms",
+    "content": "Supplier shall deliver all goods Delivered Duty Paid (DDP) to Buyer's designated site as per Incoterms 2020. Risk of loss or damage shall transfer to Buyer only upon delivery and acceptance at the designated site. Delivery shall be in accordance with the delivery schedule set forth in the Purchase Order. Supplier shall notify Buyer of dispatch at least seven (7) days in advance. In the event of delay attributable to Supplier, liquidated damages at the rate of zero point five percent (0.5%) of the delayed item value per week of delay shall apply, capped at ten percent (10%) of the total Purchase Order value. Buyer may cancel the order if delay exceeds eight (8) weeks without prejudice to other remedies."
+  },
+  {
+    "type": "supplier_pricing",
+    "title": "Fair Supplier Pricing Clause",
+    "content": "All prices set forth in the Purchase Order are firm and fixed for a period of twelve (12) months from the Effective Date of this Agreement. Any price revision thereafter shall require mutual written agreement and shall not exceed the change in the Wholesale Price Index (WPI) plus two percent (2%) per annum, calculated on a compounded basis. Supplier shall provide sixty (60) days advance written notice of any proposed price revision along with supporting documentation justifying the increase. Buyer reserves the right to source from alternative suppliers if the revised price exceeds prevailing market rates by more than ten percent (10%). No retroactive price adjustments shall apply."
+  },
+  {
+    "type": "supplier_quality",
+    "title": "Fair Supplier Quality Standards",
+    "content": "All goods supplied shall conform to ISO 9001:2015 quality management standards and any additional specifications referenced in the Purchase Order. Supplier shall conduct Factory Acceptance Testing (FAT) at its premises in accordance with an agreed Inspection and Test Plan (ITP) identifying hold points, witness points, and review points. Buyer or its nominated third-party inspection agency shall have the right to witness all hold points. Site Acceptance Testing (SAT) shall be conducted at Buyer's site within fourteen (14) days of delivery. Supplier shall provide material test certificates, calibration certificates, and certificates of conformance for each batch. Goods not conforming to specifications may be rejected within thirty (30) days of delivery."
+  },
+  {
+    "type": "supplier_warranty",
+    "title": "Fair Supplier Warranty Terms",
+    "content": "Supplier warrants that all goods supplied shall be free from defects in material and workmanship for a period of twenty-four (24) months from the date of commissioning or twenty-seven (27) months from the date of delivery, whichever occurs first. During the warranty period, Supplier shall, at Buyer's option, repair or replace any defective goods at Supplier's sole cost and expense. Supplier shall respond to warranty claims within forty-eight (48) hours for critical defects affecting operations and within seven (7) calendar days for non-critical defects. If Supplier fails to remedy a critical defect within fourteen (14) days, Buyer may engage a third party at Supplier's cost. The warranty excludes consumable items, normal wear and tear, and damage caused by Buyer's misuse."
+  },
+  {
+    "type": "supplier_dlp",
+    "title": "Fair Supplier Defect Liability Period",
+    "content": "A Defect Liability Period (DLP) of twelve (12) months shall apply from the date of Site Acceptance Testing completion. During the DLP, Supplier shall rectify any defect attributable to faulty design, materials, or workmanship at its own cost within fourteen (14) calendar days of written notice from Buyer. For emergency defects affecting safety or operations, Supplier shall respond within forty-eight (48) hours and complete rectification within seven (7) days. If Supplier fails to rectify within the specified timeline, Buyer may engage a third party at Supplier's reasonable cost. The retention money of five percent (5%) shall be released within thirty (30) days of issuance of the DLP completion certificate confirming all defects have been satisfactorily rectified."
+  },
+  {
+    "type": "supplier_liability",
+    "title": "Balanced Supplier Liability Clause",
+    "content": "Each party's total aggregate liability to the other under or in connection with this Agreement shall not exceed one hundred percent (100%) of the total Purchase Order value. Neither party shall be liable for any indirect, incidental, special, or consequential damages including loss of profit, loss of revenue, or loss of production. The limitations of liability shall not apply to (a) death or personal injury caused by negligence, (b) fraud or fraudulent misrepresentation, (c) gross negligence or willful misconduct, (d) breach of confidentiality obligations, or (e) infringement of third-party intellectual property rights. Each party shall maintain adequate insurance to cover its potential liability under this Agreement."
+  },
+  {
+    "type": "supplier_indemnity",
+    "title": "Fair Supplier Indemnity Clause",
+    "content": "Each party (the 'Indemnifying Party') shall indemnify and hold harmless the other party (the 'Indemnified Party') against all claims, losses, and reasonable legal costs arising from (a) death or personal injury caused by the Indemnifying Party's negligence, (b) damage to tangible property caused by the Indemnifying Party, and (c) infringement of third-party intellectual property rights by goods or materials provided by the Indemnifying Party. The Indemnified Party shall promptly notify the Indemnifying Party of any claim, allow the Indemnifying Party to conduct the defense, and provide reasonable cooperation. The indemnity shall be limited to the liability cap set forth in the Limitation of Liability clause."
+  },
+  {
+    "type": "supplier_termination",
+    "title": "Fair Supplier Termination Clause",
+    "content": "Either party may terminate this Agreement for convenience by providing ninety (90) days written notice to the other party. Either party may terminate immediately for material breach that remains uncured for thirty (30) days after written notice. Upon termination, Supplier shall (a) deliver all completed goods and work-in-progress for which Buyer has paid, (b) return all Buyer-owned materials, tools, and confidential information within fifteen (15) days, and (c) provide reasonable transition assistance for up to thirty (30) days. Buyer shall pay for all goods completed and accepted before termination plus the reasonable cost of materials specifically procured for this Agreement that cannot be mitigated. All outstanding invoices shall be settled within forty-five (45) days of termination."
+  },
+  {
+    "type": "supplier_force_majeure",
+    "title": "Fair Supplier Force Majeure Clause",
+    "content": "Neither party shall be liable for delay or failure to perform due to Force Majeure Events including acts of God, war, terrorism, civil unrest, epidemic, pandemic, cyber attack, fire, flood, earthquake, governmental action, or failure of utilities or telecommunications networks. The affected party shall notify the other within seven (7) days of the Force Majeure Event, describing its impact and expected duration. Both parties shall use commercially reasonable efforts to mitigate the effects. If a Force Majeure Event continues for more than ninety (90) days, either party may terminate this Agreement without liability by providing thirty (30) days written notice. Supplier shall refund any advance payment for goods not delivered due to the Force Majeure Event."
+  },
+  {
+    "type": "supplier_confidentiality",
+    "title": "Fair Supplier Confidentiality Clause",
+    "content": "Each party shall protect the other's Confidential Information using at least the same degree of care as it uses for its own similar information, but not less than reasonable care. The confidentiality obligation shall survive for three (3) years after termination or expiry of this Agreement. Confidential Information excludes information that (a) is or becomes publicly available without breach, (b) was lawfully known prior to disclosure without confidentiality restriction, (c) is independently developed without use of the Confidential Information, or (d) is required to be disclosed by law, court order, or regulatory authority. Upon termination, each party shall return or destroy all Confidential Information of the other party within thirty (30) days and provide a written certificate of destruction."
+  },
+  {
+    "type": "supplier_ip",
+    "title": "Fair Supplier Intellectual Property Clause",
+    "content": "All intellectual property rights in goods, designs, software, or documentation specifically created for Buyer under this Agreement ('Foreground IP') shall vest in and be owned exclusively by Buyer upon full payment. Supplier retains all right, title, and interest in its pre-existing intellectual property, tools, methodologies, and know-how ('Supplier Background IP'). Supplier grants Buyer a perpetual, irrevocable, royalty-free, worldwide, non-exclusive license to use Supplier Background IP to the extent necessary for Buyer to use, maintain, and modify the goods delivered under this Agreement. Each party warrants that its contributions shall not infringe the intellectual property rights of any third party and shall indemnify the other against any such infringement claims."
+  },
+  {
+    "type": "supplier_insurance",
+    "title": "Fair Supplier Insurance Clause",
+    "content": "Supplier shall maintain at its own cost the following insurance coverage: (a) General Liability insurance of not less than INR 1 Crore per occurrence, (b) Product Liability insurance of not less than INR 50 Lakhs per occurrence, (c) Workers' Compensation insurance as required by applicable law, and (d) Transit Insurance for full replacement value of all goods in transit. Supplier shall provide annual certificates of insurance to Buyer naming Buyer as an additional insured. Coverage shall be with reputable insurers having a minimum credit rating of A-. Supplier shall notify Buyer within seven (7) days of any material change to or cancellation of insurance coverage. Failure to maintain insurance shall constitute a material breach."
+  },
+  {
+    "type": "supplier_order",
+    "title": "Fair Supplier Order Management",
+    "content": "Supplier shall acknowledge each Purchase Order within five (5) business days of receipt. The acknowledgment shall confirm delivery date, price, and any deviations from the Purchase Order terms. Any discrepancy between the Purchase Order and Supplier's acknowledgment must be raised within three (3) business days; failure to raise a discrepancy shall constitute acceptance of the Purchase Order terms. Supplier shall provide order status updates weekly and notify Buyer immediately of any anticipated delay. Buyer may amend or cancel a Purchase Order without charge if Supplier has not commenced procurement or manufacturing. For customized goods, cancellation charges shall be limited to Supplier's demonstrable, non-recoverable costs."
+  },
+  {
+    "type": "supplier_compliance",
+    "title": "Fair Supplier Compliance Clause",
+    "content": "Supplier shall comply with all applicable laws including the Goods and Services Tax Act, labour laws, environmental regulations, and anti-bribery legislation including the Prevention of Corruption Act and the Foreign Corrupt Practices Act. Supplier shall issue valid GST-compliant tax invoices with correct HSN codes, GSTIN, and place of supply. Supplier represents that it has not and shall not offer any bribe, kickback, or improper payment to any Buyer employee or government official. Supplier shall comply with the Digital Personal Data Protection Act, 2023 (DPDP Act) in handling any personal data of Buyer's employees or customers. Breach of this compliance clause shall constitute grounds for immediate termination."
+  },
+  {
+    "type": "works_payment",
+    "title": "Fair Works Contract Payment Terms",
+    "content": "Contractor shall submit monthly Running Account (RA) bills based on measured quantities of work executed, supported by measurement sheets and supporting documents. The Employer's Engineer shall certify the RA bill within fourteen (14) calendar days of submission. The Employer shall pay the certified amount within thirty (30) days of certification, less retention money of five percent (5%). Retention shall be released in two stages: fifty percent (50%) upon issuance of the Practical Completion Certificate and the remaining fifty percent (50%) upon issuance of the Final Completion Certificate or expiry of the Defect Liability Period, whichever is later. Advance payment of ten percent (10%) of contract value shall be made against an unconditional Bank Guarantee of equivalent amount."
+  },
+  {
+    "type": "works_variation",
+    "title": "Fair Works Contract Variation Procedure",
+    "content": "All variations to the Scope of Work shall be instructed through a written Variation Order (VO) signed by both parties. Upon receiving a VO request, the Contractor shall submit a cost and time impact assessment within fourteen (14) calendar days. The parties shall mutually agree on the cost and time adjustment before the variation work commences. Where agreement cannot be reached, the variation shall be valued using the contract rates or, if no applicable rates exist, fair market rates plus a reasonable allowance for overhead and profit. The cumulative value of all variations shall not exceed fifteen percent (15%) of the original contract value without a formal contract amendment. Any variation shall automatically entitle the Contractor to a proportionate extension of time."
+  },
+  {
+    "type": "works_eot",
+    "title": "Fair Works Contract Extension of Time",
+    "content": "The Contractor shall be entitled to an Extension of Time (EOT) for completion for any delay caused by (a) Employer-caused delays including late site possession, late drawing approvals, or late supply of Employer-provided materials, (b) variations instructed under the Variation clause, (c) Force Majeure Events, (d) exceptionally adverse weather conditions exceeding ten-year averages, (e) material shortages beyond the Contractor's control, (f) statutory changes, or (g) concurrent delay where the Employer is partially responsible. The Contractor shall notify the Engineer within twenty-eight (28) days of the event giving rise to the EOT claim. EOT shall be assessed by the Engineer within twenty-eight (28) days of submission. Employer-caused delays shall additionally entitle the Contractor to cost relief for prolongation and disruption."
+  },
+  {
+    "type": "works_milestones",
+    "title": "Fair Works Contract Milestone & LDs",
+    "content": "The Contractor shall achieve the milestones set forth in the Milestone Schedule attached as an Annexure. Sectional completion shall be permitted for distinct parts of the Works capable of independent use. Delay liquidated damages for failure to achieve a milestone by the scheduled date shall be zero point one percent (0.1%) of the affected section value per day of delay, capped at ten percent (10%) of the total contract value. Liquidated damages shall be the Employer's sole remedy for delay, excluding termination for prolonged default. No liquidated damages shall apply for delays caused by Employer's default, variations, or Force Majeure Events. An early completion bonus of fifty percent (50%) of the LD rate per day shall be payable for each day of early completion, capped at five percent (5%) of contract value."
+  },
+  {
+    "type": "works_quality",
+    "title": "Fair Works Contract Quality Standards",
+    "content": "The Contractor shall implement a Quality Assurance Plan in accordance with ISO 9001:2015. An Inspection and Test Plan (ITP) shall be submitted for approval within thirty (30) days of commencement, identifying all Hold Points (H), Witness Points (W), and Review Points (R). The Employer's Engineer or a nominated third-party inspection agency shall witness all Hold Points before the Contractor may proceed. Material submittals including samples, catalogues, and test certificates shall be submitted for approval fourteen (14) days before procurement. Work covered without inspection at a Hold Point shall be uncovered at the Contractor's cost for inspection. Non-conforming work shall be rectified or re-executed at the Contractor's cost to meet specifications."
+  },
+  {
+    "type": "works_materials",
+    "title": "Fair Works Contract Materials Clause",
+    "content": "Employer-supplied materials shall be delivered to the Site in accordance with the delivery schedule set forth in the Materials Schedule annexure. Delays in delivery of Employer-supplied materials shall entitle the Contractor to an Extension of Time and cost relief for standing time and prolongation. The Contractor shall inspect Employer-supplied materials within seven (7) days of delivery and notify the Employer of any defects or shortages. Materials supplied by the Contractor shall be subject to the approval process defined in the ITP. The Contractor shall provide secure storage for all materials on Site and maintain an inventory register. Materials incorporated into the Works shall become the property of the Employer upon payment."
+  },
+  {
+    "type": "works_dlp",
+    "title": "Fair Works Contract Defect Liability Period",
+    "content": "A Defect Liability Period (DLP) of twelve (12) months shall commence from the date of Practical Completion for non-structural works and twenty-four (24) months for structural works. The Contractor shall rectify any defect notified during the DLP within fourteen (14) calendar days, or seven (7) days for emergency defects affecting safety or operations. If the Contractor fails to rectify within the specified period, the Employer may engage others at the Contractor's cost. The retention money shall be released only after issuance of the DLP completion certificate confirming all defects have been satisfactorily rectified. The Contractor's liability for latent structural defects shall survive for a period of five (5) years from Practical Completion."
+  },
+  {
+    "type": "works_security",
+    "title": "Fair Works Performance Security",
+    "content": "The Contractor shall provide an unconditional, on-demand Performance Bank Guarantee for ten percent (10%) of the contract value from a scheduled bank acceptable to the Employer. The Performance Security shall be valid until Final Completion plus six (6) months. The Employer may reduce the Performance Security to five percent (5%) upon issuance of the Practical Completion Certificate, subject to satisfactory progress and no outstanding claims. The Employer shall release the Performance Security within thirty (30) days of Final Completion. An advance payment guarantee for one hundred percent (100%) of the advance amount shall be provided separately and shall be released proportionally as the advance is recovered through running bills."
+  },
+  {
+    "type": "works_insurance",
+    "title": "Fair Works Contract Insurance Requirements",
+    "content": "The Contractor shall maintain at its own cost: (a) Contractors All Risk (CAR) / Erection All Risk (EAR) insurance for not less than one hundred ten percent (110%) of the contract value covering all risks of physical loss or damage to the Works, (b) Third-Party Liability insurance of INR 5 Crore per occurrence, (c) Workers' Compensation insurance as required by the Employees' Compensation Act, (d) Professional Indemnity insurance of INR 2 Crore if the Contractor has design responsibility, and (e) Motor Vehicle and Plant & Equipment insurance. The Employer shall be named as co-insured on the CAR/EAR and Third-Party Liability policies. Insurance certificates shall be submitted before commencement and renewed annually."
+  },
+  {
+    "type": "works_claims",
+    "title": "Fair Works Contract Claims Procedure",
+    "content": "The Contractor shall give notice of any claim for additional payment or time within twenty-eight (28) days of the event giving rise to the claim. The notice shall describe the event, its impact on cost and time, and the contractual basis for the claim. The Contractor shall submit a fully detailed claim with supporting documentation within forty-two (42) days of the event. The Engineer shall determine the claim within forty-two (42) days of receipt of the fully detailed submission. If the Contractor disagrees with the Engineer's determination, the matter shall be referred to a Dispute Adjudication Board (DAB) comprising one or three members appointed by mutual agreement. The DAB shall give its decision within eighty-four (84) days of referral. Loss and expense claims shall include prolongation costs, disruption costs, and head-office overheads calculated using agreed formula or actual audited costs."
+  },
+  {
+    "type": "works_termination",
+    "title": "Fair Works Contract Termination Clause",
+    "content": "Either party may terminate this Contract for convenience upon ninety (90) days written notice. The Employer may terminate immediately for Contractor default including (a) abandonment of the Works, (b) persistent failure to proceed with due diligence, (c) subcontracting without consent, or (d) material breach of safety or environmental obligations. The Contractor may terminate immediately for Employer default including (a) failure to pay certified amounts within sixty (60) days, (b) failure to provide site possession for more than ninety (90) days, or (c) suspension of the Works for more than one hundred eighty (180) days. Upon termination, the Contractor shall be paid for work executed, materials ordered, demobilization costs, and loss of profit on the unexecuted portion at five percent (5%) of the remaining contract value."
+  },
+  {
+    "type": "works_hse",
+    "title": "Fair Works Contract HSE Requirements",
+    "content": "The Contractor shall submit a Health, Safety, and Environment (HSE) Plan within fourteen (14) days of commencement, compliant with the National Building Code (NBC) 2016, the Factories Act, and applicable environmental regulations. The Contractor shall appoint a dedicated HSE Officer and conduct daily toolbox talks and weekly safety audits. All personnel shall undergo site safety induction before commencing work. Personal Protective Equipment (PPE) shall be provided to all workers at the Contractor's cost. Accidents resulting in lost time injury shall be reported within four (4) hours and investigated within forty-eight (48) hours. The Contractor shall maintain a valid environmental clearance and consent to operate. Monthly HSE performance reports shall be submitted including leading and lagging indicators."
+  },
+  {
+    "type": "works_subcontract",
+    "title": "Fair Works Contract Subcontracting",
+    "content": "The Contractor may subcontract portions of the Works with the prior written consent of the Employer, such consent not to be unreasonably withheld. Consent shall not be required for subcontracts valued below five percent (5%) of the contract value. The Contractor shall remain fully liable for all subcontractor work as if it were performed by the Contractor itself. All subcontracts shall include back-to-back provisions equivalent to the terms of this Contract. The Contractor shall submit a list of proposed subcontractors and their scope of work for approval. The Employer shall have the right to audit subcontractor quality, safety, and financial standing. Nominated subcontractors selected by the Employer shall not relieve the Contractor of coordination and interface responsibility."
+  },
+  {
+    "type": "works_dispute",
+    "title": "Fair Works Contract Dispute Resolution",
+    "content": "All disputes shall be resolved through a tiered process: (a) negotiation between the Contractor's Project Manager and the Employer's Engineer within fourteen (14) days of the dispute notice, (b) if unresolved, negotiation between senior management of both parties within a further fourteen (14) days, (c) if still unresolved, non-binding mediation by a mutually agreed mediator within thirty (30) days, and (d) finally, binding arbitration under the rules of the Indian Council of Arbitration (ICA) or Singapore International Arbitration Centre (SIAC) as agreed. The arbitration seat shall be in India, conducted in English, with a sole arbitrator for claims below INR 1 Crore and a three-member tribunal for larger claims. The losing party shall bear the arbitration costs. The courts at the seat shall have exclusive supervisory jurisdiction."
+  },
+  {
+    "type": "works_scope",
+    "title": "Fair Works Contract Scope Definition",
+    "content": "The Scope of Work is exhaustively defined in Annexure A — Bill of Quantities (BOQ), Annexure B — Technical Specifications, Annexure C — Drawings, and Annexure D — Work Exclusions. Any work not described in these annexures is expressly excluded from the Contract. The BOQ quantities are approximate and subject to re-measurement; the Contractor shall be paid for actual quantities executed at the agreed unit rates. The Contractor shall execute the Works in accordance with the latest revision of drawings issued for construction. Any conflict between contract documents shall be resolved in the following order of precedence: (a) the Contract Agreement, (b) Special Conditions, (c) General Conditions, (d) Technical Specifications, (e) Drawings, (f) BOQ. The Contractor acknowledges having visited the Site and satisfied itself of site conditions, access, and all matters affecting the execution of the Works."
   }
 ]

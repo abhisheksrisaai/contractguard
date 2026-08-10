@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 # ── Clause type patterns for regex-based classification ──────────────
-# Used as a fallback when the LLM is unavailable or for quick pre-classification.
 CLAUSE_TYPE_KEYWORDS: Dict[str, List[str]] = {
     "payment": [
         "payment", "fee", "compensation", "invoice", "price", "amount due",
@@ -68,32 +67,61 @@ class PDFExtractor:
     Extracts text from PDF contracts and segments it into logical clauses.
 
     Uses PyMuPDF as the primary extraction engine with pdfplumber as a
-    fallback for complex layouts. Handles scanned PDFs gracefully by
-    returning whatever text is available (OCR to be added later).
+    fallback for complex layouts.
     """
 
     # ── Clause boundary patterns ──────────────────────────────────────
-    # Headers like "1.", "ARTICLE 2", "Section 3.1", "Clause IV", etc.
+    # Matches numbered/article/schedule/lettered clause headers.
+    # Covers: "1.", "1)", "2.1", "2.1.1" (decimal), "Article 2",
+    # "SCHEDULE 1", "ANNEXURE A", "EXHIBIT B", "APPENDIX C",
+    # "(a)", "(b)" lettered sub-clauses (start-of-line only),
+    # Roman numerals "IV.", "VII." — all followed by any-case letter.
+    #
+    # Note: The trailing [\s\u2014\u2013\-\:\.]*[A-Za-z] handles em-dash
+    # separators like "SCHEDULE 1 \u2014 Fees".
     CLAUSE_HEADER_RE = re.compile(
-        r"(?:^|\n)"                          # start of line
-        r"\s*"                               # optional whitespace
-        r"(?:"                               # begin header group
-        r"(?:Article|Section|Clause|PART|SECTION|ARTICLE)\s+\d+"  # Article 1
-        r"|"                                 # or
-        r"(?:ARTICLE|SECTION|CLAUSE)\s+\d+"  # ARTICLE 1
-        r"|"                                 # or
-        r"\d+[\.\)]\s+"                      # 1. or 1)
-        r"|"                                 # or
-        r"[IVX]+\.\s+"                       # IV.
-        r")"                                 # end header group
-        r"\s*"                               # optional whitespace
-        r"[A-Z]"                             # followed by uppercase letter
+        r"(?:^|\n)"                              # start of line
+        r"\s*"                                   # optional whitespace
+        r"(?:"                                   # begin header group
+        # Word-label headers: Article/Section/Clause/PART + number
+        r"(?:Article|Section|Clause|PART|SECTION|ARTICLE)\s+\d+"
+        r"|"
+        # Schedule / Annexure / Exhibit / Appendix + identifier
+        r"(?:Schedule|Annexure|Exhibit|Appendix|"
+        r"SCHEDULE|ANNEXURE|EXHIBIT|APPENDIX)\s+[A-Za-z0-9]"
+        r"|"
+        # Decimal numbering: 2.1, 2.1.1, 2.1.1.1
+        r"\d+\.\d+(?:\.\d+)*\s+"
+        r"|"
+        # Simple numbering: 1., 1)
+        r"\d+[\.\)]\s+"
+        r"|"
+        # Roman numerals: IV., VII., X.
+        r"[IVX]+\.\s+"
+        r"|"
+        # Lettered markers: (a), (b), (c) at start of line
+        r"\([a-z]\)\s+"
+        r")"
+        # Separator (whitespace, em-dash, en-dash, hyphen, colon, period)
+        r"[\s\u2014\u2013\-\:]*"
+        r"[A-Za-z]"                              # followed by any-case letter
     )
 
-    # Secondary pattern: ALL-CAPS short line followed by body text
-    ALL_CAPS_HEADER_RE = re.compile(
-        r"(?:^|\n)([A-Z][A-Z\s]{10,80})(?:\n|$)"
+    # Title-Case or ALL-CAPS standalone heading line.
+    # Captures unnumbered headings like "DUTIES AND RESPONSIBILITIES" or
+    # "Services and Deliverables" that are short (<80 chars),
+    # no trailing period, and followed by a longer body paragraph.
+    TITLE_CASE_HEADER_RE = re.compile(
+        r"(?:^|\n)"                              # start of line
+        r"("                                     # capture group 1: heading
+        r"[A-Z][A-Za-z\s\-/,&]{4,75}"            # Title-Case / mixed
+        r"|"
+        r"[A-Z][A-Z\s\-/,&]{4,75}"               # ALL-CAPS
+        r")"
+        r"(?:\n|$)"                              # end of line
     )
+
+    # ── Public API ────────────────────────────────────────────────────
 
     def extract_text(self, file_path: str) -> str:
         """
@@ -174,10 +202,12 @@ class PDFExtractor:
         Segment raw contract text into logical clauses.
 
         Strategy:
-        1. First attempt: split on numbered/article headers (e.g. "1.", "Article 2").
-        2. Fallback: split on double-newlines (paragraph boundaries).
-        3. Merge very short segments with neighbors.
-        4. Classify each clause type.
+        1. Find all header candidates (numbered, article, schedule, lettered,
+           unnumbered Title-Case/ALL-CAPS headings).
+        2. Split text at those header positions.
+        3. Fallback: split on double-newlines if too few segments.
+        4. Merge very short segments into neighbors (min_length=60).
+        5. Classify each clause type.
 
         Args:
             text: Raw contract text from extract_text().
@@ -190,11 +220,16 @@ class PDFExtractor:
         raw_clauses = self._split_by_headers(text)
 
         if len(raw_clauses) < 2:
-            logger.info("Header-based split produced only %d clause(s). Falling back to paragraph split.", len(raw_clauses))
+            logger.info(
+                "Header-based split produced only %d clause(s). "
+                "Falling back to paragraph split.",
+                len(raw_clauses),
+            )
             raw_clauses = self._split_by_paragraphs(text)
 
-        # Merge short fragments into neighbors
-        merged = self._merge_short_clauses(raw_clauses, min_length=100)
+        # Merge short fragments (min_length=60 accommodates short
+        # commercial clauses that might otherwise be merged away)
+        merged = self._merge_short_clauses(raw_clauses, min_length=60)
 
         # Build final structured list
         clauses: List[Dict] = []
@@ -204,7 +239,7 @@ class PDFExtractor:
             ctype = self.classify_clause_type(title, body)
 
             if not body.strip():
-                continue  # skip empty clauses
+                continue
 
             clauses.append({
                 "id": f"clause_{idx:03d}",
@@ -214,7 +249,6 @@ class PDFExtractor:
             })
 
         if not clauses:
-            # Last resort: treat entire text as single clause
             clauses.append({
                 "id": "clause_001",
                 "title": "Entire Agreement",
@@ -225,23 +259,108 @@ class PDFExtractor:
         logger.info("Segmented into %d clauses.", len(clauses))
         return clauses
 
+    # ── Header Detection ─────────────────────────────────────────────
+
+    def _find_all_header_positions(self, text: str) -> List[int]:
+        """
+        Find all potential clause boundary positions in text.
+
+        Combines regex-based header matches (numbered, article, schedule,
+        lettered) with unnumbered Title-Case/ALL-CAPS heading detection.
+        Filters false positives (inline references, mid-paragraph caps).
+        Returns sorted, deduplicated list of character positions.
+        """
+        positions: List[int] = []
+
+        # ── Pass 1: Regex header matches ──────────────────────────
+        for m in self.CLAUSE_HEADER_RE.finditer(text):
+            pos = m.start()
+            match_text = m.group(0).lstrip()
+
+            # Filter: lettered markers "(a)" only valid if on a
+            # short standalone line (< 70 chars) followed by a body
+            if match_text.startswith("("):
+                line = self._line_at(text, pos)
+                if line is not None and len(line) >= 70:
+                    # Long line → likely inline reference, skip
+                    continue
+                # Also skip if not followed by body paragraph
+                following = self._line_after(text, pos, line)
+                if following is None or len(following) < 20:
+                    continue
+
+            positions.append(pos)
+
+        # ── Pass 2: Unnumbered Title-Case / ALL-CAPS headings ─────
+        for m in self.TITLE_CASE_HEADER_RE.finditer(text):
+            pos = m.start()
+            heading = (m.group(1) or m.group(0)).strip()
+
+            # Too short or too long → skip
+            if len(heading) < 5 or len(heading) > 80:
+                continue
+
+            # Ends with period/colon → probably not a heading
+            if heading.rstrip().endswith((".", ":")):
+                continue
+
+            # Skip if already near an existing regex-matched position
+            if any(abs(pos - p) < len(heading) for p in positions):
+                continue
+
+            # Must be followed by a longer body line
+            following = self._line_after(text, pos, heading)
+            if following is None or len(following) < 30:
+                continue
+
+            # At least 50% of words must start with uppercase
+            words = [w for w in heading.split() if len(w) > 1]
+            if not words:
+                continue
+            caps_words = sum(1 for w in words if w[0].isupper())
+            if caps_words < max(2, len(words) * 0.5):
+                continue
+
+            positions.append(pos)
+
+        return sorted(set(positions))
+
+    def _line_at(self, text: str, pos: int) -> Optional[str]:
+        """Return the full line containing character position `pos`."""
+        start = text.rfind("\n", 0, pos) + 1  # -1 → 0
+        end = text.find("\n", pos)
+        if end == -1:
+            end = len(text)
+        return text[start:end]
+
+    def _line_after(self, text: str, pos: int, heading: str) -> Optional[str]:
+        """Return the line immediately following `heading` at `pos`."""
+        heading_end = pos + len(heading)
+        nl = text.find("\n", heading_end)
+        if nl == -1:
+            return None
+        next_start = nl + 1
+        next_end = text.find("\n", next_start)
+        if next_end == -1:
+            next_end = len(text)
+        return text[next_start:next_end].strip()
+
     def _split_by_headers(self, text: str) -> List[str]:
-        """Split text using clause header regex."""
-        # Find all header positions
-        matches = list(self.CLAUSE_HEADER_RE.finditer(text))
-        if not matches:
+        """Split text using detected header positions."""
+        positions = self._find_all_header_positions(text)
+        if not positions:
             return [text]
 
         segments: List[str] = []
-        for i, match in enumerate(matches):
-            start = match.start()
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        for i, pos in enumerate(positions):
+            start = pos
+            end = positions[i + 1] if i + 1 < len(positions) else len(text)
             segment = text[start:end].strip()
             segments.append(segment)
 
-        # Prepend text before the first header as preamble (if substantial)
-        if matches and matches[0].start() > 0:
-            preamble = text[:matches[0].start()].strip()
+        # Prepend text before the first header as preamble if substantial
+        if positions and positions[0] > 0:
+            preamble = text[:positions[0]].strip()
             if len(preamble) > 50:
                 segments.insert(0, preamble)
 
@@ -249,14 +368,12 @@ class PDFExtractor:
 
     def _split_by_paragraphs(self, text: str) -> List[str]:
         """Fallback split: treat double-newlines as clause boundaries."""
-        # Normalize line endings
         normalized = re.sub(r"\r\n|\r", "\n", text)
-        # Split on blank lines
         parts = re.split(r"\n\s*\n", normalized)
         return [p.strip() for p in parts if p.strip() and len(p.strip()) > 20]
 
-    def _merge_short_clauses(self, clauses: List[str], min_length: int = 100) -> List[str]:
-        """Merge short segments into neighboring clauses to avoid orphan lines."""
+    def _merge_short_clauses(self, clauses: List[str], min_length: int = 60) -> List[str]:
+        """Merge short segments into neighboring clauses."""
         if not clauses:
             return []
 
@@ -273,7 +390,6 @@ class PDFExtractor:
                 merged.append(clause)
 
         if buffer:
-            # Append remaining buffer to last clause (or make it standalone)
             if merged:
                 merged[-1] += "\n" + buffer
             else:
@@ -289,11 +405,14 @@ class PDFExtractor:
 
         first_line = lines[0].strip()
 
-        # If first line is short and looks like a header, use it as title
-        if len(first_line) <= 120 and re.search(r"[A-Z]{2,}|^\d+[\.\)]|Article|Section|Clause", first_line, re.IGNORECASE):
+        if len(first_line) <= 120 and re.search(
+            r"[A-Z]{2,}|^\d+[\.\)]|Article|Section|Clause|"
+            r"Schedule|Annexure|Exhibit|Appendix|^\([a-z]\)",
+            first_line,
+            re.IGNORECASE,
+        ):
             return first_line
 
-        # Otherwise take first ~85 chars as a summary title
         return first_line[:85] + ("..." if len(first_line) > 85 else "")
 
     def _clean_body(self, text: str, title: str) -> str:
@@ -301,7 +420,6 @@ class PDFExtractor:
         body = text.strip()
         if title and body.startswith(title):
             body = body[len(title):].strip()
-        # Collapse multiple spaces/newlines
         body = re.sub(r"\n{3,}", "\n\n", body)
         body = re.sub(r"[ \t]+", " ", body)
         return body.strip()
@@ -311,17 +429,6 @@ class PDFExtractor:
     def classify_clause_type(self, title: str, content: str) -> str:
         """
         Classify a clause into one of the predefined types using keyword matching.
-
-        Types: payment, termination, liability, confidentiality,
-               intellectual_property, data_protection, non_compete,
-               governing_law, force_majeure, warranty, general.
-
-        Args:
-            title: Clause title.
-            content: Clause body content.
-
-        Returns:
-            Lowercase type string.
         """
         combined = (title + " " + content).lower()
         scores: Dict[str, int] = {}
@@ -334,6 +441,4 @@ class PDFExtractor:
         if not scores:
             return "general"
 
-        # Return the type with the most keyword matches
-        best_type = max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]
-        return best_type
+        return max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]

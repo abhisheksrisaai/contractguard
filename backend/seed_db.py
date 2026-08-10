@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.core.config import settings
-from app.services.rag_service import RAGService, COLLECTION_NAME
+from app.services.rag_service import RAGService, COLLECTION_NAME, EMBEDDING_VERSION as _EMBEDDING_VERSION
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,6 +106,10 @@ def main() -> None:
     logger.info("  Added:    %d", added)
     logger.info("  Failed:   %d", failed)
     logger.info("  Total:    %d clauses in library", len(clauses))
+
+    # ── Write embedding version marker ──────────────────────
+    RAGService.write_version_marker()
+    logger.info("  Embedding version: %s", _EMBEDDING_VERSION)
 
     # Verify
     health = rag.health_check()

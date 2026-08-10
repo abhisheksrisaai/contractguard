@@ -1,21 +1,14 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * RiskMeter — Animated circular gauge showing overall contract risk score.
- *
- * @param {Object} props
- * @param {number} props.score — 0-100 risk score
- * @param {string} [props.size] — 'sm' | 'md' | 'lg' (default: 'lg')
- */
 function getColor(score) {
-  if (score >= 70) return { ring: '#EF4444', bg: '#FEE2E2', text: '#991B1B' };
-  if (score >= 40) return { ring: '#F59E0B', bg: '#FEF3C7', text: '#92400E' };
-  return { ring: '#10B981', bg: '#D1FAE5', text: '#065F46' };
+  if (score >= 75) return { ring: '#EF4444', bg: 'rgba(239,68,68,0.15)', text: '#FCA5A5' };
+  if (score >= 45) return { ring: '#F59E0B', bg: 'rgba(245,158,11,0.15)', text: '#FCD34D' };
+  return { ring: '#10B981', bg: 'rgba(16,185,129,0.15)', text: '#6EE7B7' };
 }
 
 function getLabel(score) {
-  if (score >= 70) return 'High Risk';
-  if (score >= 40) return 'Medium Risk';
+  if (score >= 75) return 'High Risk';
+  if (score >= 45) return 'Medium Risk';
   return 'Low Risk';
 }
 
@@ -33,66 +26,21 @@ export default function RiskMeter({ score = 0, size = 'lg' }) {
   const offset = circumference - (Math.min(score, 100) / 100) * circumference;
   const colors = getColor(score);
 
-  useEffect(() => {
-    // Animate on mount
-    if (circleRef.current) {
-      circleRef.current.style.transition = 'stroke-dashoffset 1s ease-out';
-    }
-  }, [score]);
+  useEffect(() => { if (circleRef.current) circleRef.current.style.transition = 'stroke-dashoffset 1s ease-out'; }, [score]);
 
   return (
     <div className="flex flex-col items-center gap-2 animate-scale-in">
       <svg width={s.dim} height={s.dim} className="transform -rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={s.dim / 2}
-          cy={s.dim / 2}
-          r={radius}
-          fill="none"
-          stroke={colors.bg}
-          strokeWidth={s.stroke}
-        />
-        {/* Progress circle */}
-        <circle
-          ref={circleRef}
-          cx={s.dim / 2}
-          cy={s.dim / 2}
-          r={radius}
-          fill="none"
-          stroke={colors.ring}
-          strokeWidth={s.stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference}
-          style={{ strokeDashoffset: offset }}
-          className="transition-all duration-1000 ease-out"
-        />
+        <circle cx={s.dim / 2} cy={s.dim / 2} r={radius} fill="none" stroke={colors.bg} strokeWidth={s.stroke} />
+        <circle ref={circleRef} cx={s.dim / 2} cy={s.dim / 2} r={radius} fill="none" stroke={colors.ring} strokeWidth={s.stroke} strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={circumference}
+          style={{ strokeDashoffset: offset }} className="transition-all duration-1000 ease-out" />
       </svg>
-
-      {/* Center text */}
-      <div className="absolute flex flex-col items-center justify-center" style={{
-        width: s.dim, height: s.dim, marginTop: `-${s.dim}px`, position: 'relative',
-      }}>
-        <span
-          className="font-extrabold tracking-tight"
-          style={{ fontSize: s.font, color: colors.ring, lineHeight: 1 }}
-        >
-          {Math.round(score)}
-        </span>
-        <span
-          className="text-slate-400 mt-0.5"
-          style={{ fontSize: s.label, fontWeight: 500 }}
-        >
-          / 100
-        </span>
+      <div className="absolute flex flex-col items-center justify-center" style={{ width: s.dim, height: s.dim, marginTop: `-${s.dim}px`, position: 'relative' }}>
+        <span className="font-extrabold tracking-tight" style={{ fontSize: s.font, color: colors.ring, lineHeight: 1 }}>{Math.round(score)}</span>
+        <span className="text-white/30 mt-0.5" style={{ fontSize: s.label, fontWeight: 500 }}>/ 100</span>
       </div>
-
-      <span
-        className="font-semibold tracking-wide uppercase mt-1"
-        style={{ fontSize: s.label, color: colors.ring }}
-      >
-        {getLabel(score)}
-      </span>
+      <span className="font-semibold tracking-wide uppercase mt-1" style={{ fontSize: s.label, color: colors.ring }}>{getLabel(score)}</span>
     </div>
   );
 }

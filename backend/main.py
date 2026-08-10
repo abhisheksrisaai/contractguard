@@ -1,7 +1,8 @@
 """
-ContractGuard — FastAPI Backend (Day 5 Polish)
+ContractGuard — FastAPI Backend
 ===============================
-Production-ready with rate limiting, CORS hardening, request logging.
+Production-ready with rate limiting, CORS hardening, request logging,
+contract classification, skill analysis, and parallel clause processing.
 
 Endpoints:
   GET  /                 — Welcome message
@@ -11,18 +12,18 @@ Endpoints:
   POST /api/report       — Generate PDF report from analysis JSON
 """
 
+import asyncio
 import logging
 import os
-import shutil
-import tempfile
 import time
-import uuid
+import tempfile
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -33,6 +34,9 @@ from app.services.pdf_extractor import PDFExtractor
 from app.services.llm_service import ContractAnalyzer
 from app.services.rag_service import RAGService
 from app.services.report_generator import ReportGenerator
+from app.services.contract_classifier import contract_classifier
+from app.skills.redflag_scanner import scan_red_flags
+from app.skills.skill_analyzer import SkillAnalyzer
 
 # ── Logging ──────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -47,6 +51,18 @@ pdf_extractor = PDFExtractor()
 contract_analyzer = ContractAnalyzer()
 rag_service = RAGService()
 report_generator = ReportGenerator()
+skill_analyzer = SkillAnalyzer(contract_analyzer, rag_service)
+
+# ── Allowed models ───────────────────────────────────────────────────
+ALLOWED_MODELS = {
+    "llama-3.3-70b-versatile",
+    "mixtral-8x7b-32768",
+}
+VALID_CONTRACT_TYPES = {
+    "employment_contract", "supplier_contract", "works_contract",
+    "partner_agreement", "service_agreement", "nda", "purchase_order",
+}
+
 
 # ── Rate Limiter ─────────────────────────────────────────────────────
 
@@ -59,47 +75,42 @@ class RateLimiter:
         self._store: Dict[str, List[float]] = defaultdict(list)
 
     def _cleanup(self, ip: str, now: float) -> None:
-        """Remove timestamps outside the current window."""
         cutoff = now - self.window_seconds
         self._store[ip] = [t for t in self._store[ip] if t > cutoff]
 
     def is_allowed(self, ip: str) -> bool:
-        """Check if a request from this IP is within limits."""
         now = time.time()
         self._cleanup(ip, now)
         return len(self._store[ip]) < self.max_requests
 
     def record(self, ip: str) -> None:
-        """Record a request from this IP."""
         self._store[ip].append(time.time())
 
     def remaining(self, ip: str) -> int:
-        """Return remaining allowed requests for this IP."""
         now = time.time()
         self._cleanup(ip, now)
         return max(0, self.max_requests - len(self._store[ip]))
 
+    def reset(self) -> None:
+        self._store.clear()
 
-# Different limiters for different endpoints
-analyze_limiter = RateLimiter(max_requests=5, window_seconds=60)   # 5/min
-ask_limiter = RateLimiter(max_requests=10, window_seconds=60)      # 10/min
-report_limiter = RateLimiter(max_requests=10, window_seconds=60)   # 10/min
+
+analyze_limiter = RateLimiter(max_requests=5, window_seconds=60)
+ask_limiter = RateLimiter(max_requests=10, window_seconds=60)
+report_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
 
 # ── Request Logging Middleware ───────────────────────────────────────
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log every request with method, path, status, and duration."""
-
     async def dispatch(self, request: Request, call_next):
         start = time.time()
         response = await call_next(request)
         duration_ms = (time.time() - start) * 1000
         logger.info(
             "%s %s → %d (%.1fms) [%s]",
-            request.method,
-            request.url.path,
-            response.status_code,
-            duration_ms,
+            request.method, request.url.path,
+            response.status_code, duration_ms,
             request.client.host if request.client else "unknown",
         )
         return response
@@ -109,7 +120,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle."""
     logger.info("=" * 50)
     logger.info("ContractGuard API starting...")
     logger.info("  Qdrant mode: %s", settings.QDRANT_MODE)
@@ -129,7 +139,7 @@ async def lifespan(app: FastAPI):
     # ── Auto-seed Qdrant if collection needs seeding ─────────
     try:
         import json
-        from pathlib import Path
+        from app.services.rag_service import RAGService
         clauses_path = Path(__file__).parent / "clause_library" / "fair_clauses.json"
         json_clause_count = 0
         if clauses_path.exists():
@@ -138,13 +148,21 @@ async def lifespan(app: FastAPI):
 
         health = rag_service.health_check()
         db_count = health.get("clause_count", 0)
+        embedding_version_changed = RAGService.embedding_needs_reseed()
         needs_seed = (
             not health.get("collection_exists") or
             db_count == 0 or
-            db_count != json_clause_count
+            db_count != json_clause_count or
+            embedding_version_changed
         )
         if needs_seed:
-            logger.info("  Qdrant needs seeding (DB: %d, JSON: %d). Seeding...", db_count, json_clause_count)
+            if embedding_version_changed:
+                logger.info(
+                    "  Embedding version changed (%s → %s). Force re-seeding.",
+                    RAGService.get_persisted_version() or "none", "tfidf-v2",
+                )
+            else:
+                logger.info("  Qdrant needs seeding (DB: %d, JSON: %d).", db_count, json_clause_count)
             if clauses_path.exists():
                 with open(clauses_path, "r", encoding="utf-8") as f:
                     clauses = json.load(f)
@@ -160,6 +178,7 @@ async def lifespan(app: FastAPI):
                         added += 1
                     except Exception as exc:
                         logger.warning("  Seed failed for '%s': %s", clause.get("title", "")[:60], exc)
+                RAGService.write_version_marker()
                 logger.info("  Seeded %d/%d fair clauses.", added, len(clauses))
             else:
                 logger.warning("  fair_clauses.json not found — skipping seed.")
@@ -167,6 +186,13 @@ async def lifespan(app: FastAPI):
             logger.info("  Qdrant up-to-date (%d clauses).", db_count)
     except Exception as e:
         logger.warning("  Auto-seed skipped: %s", e)
+
+    # Pre-load the TF-IDF vectorizer on startup
+    try:
+        rag_service._get_or_create_vectorizer()
+        logger.info("  TF-IDF vectorizer ready.")
+    except Exception as e:
+        logger.warning("  TF-IDF vectorizer init skipped: %s", e)
 
     logger.info("=" * 50)
     yield
@@ -184,11 +210,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware (order matters: last added = first executed) ──────────
-# Request logging (outermost)
 app.add_middleware(RequestLoggingMiddleware)
-
-# CORS (innermost — handles OPTIONS preflight)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -210,15 +232,26 @@ app.add_middleware(
 # ── Pydantic Schemas ─────────────────────────────────────────────────
 
 class AskRequest(BaseModel):
-    contract_text: str = Field(..., min_length=1, description="Full contract text")
-    question: str = Field(..., min_length=1, description="Question about the contract")
+    contract_text: str = Field(..., min_length=1)
+    question: str = Field(..., min_length=1)
+    model: Optional[str] = Field(None)
 
 
 class ReportRequest(BaseModel):
-    clauses: List[Dict[str, Any]] = Field(..., min_length=1, description="List of analyzed clauses")
+    clauses: List[Dict[str, Any]] = Field(..., min_length=1)
     overall_score: Optional[float] = Field(None, ge=0, le=100)
     breakdown: Optional[Dict[str, int]] = None
     assessment: Optional[str] = None
+    # ── New optional fields for enriched reports ─────
+    contract_type: Optional[str] = None
+    five_c: Optional[Dict[str, Any]] = None
+    red_flags: Optional[List[Dict[str, Any]]] = None
+    negotiation_opportunities: Optional[List[Dict[str, Any]]] = None
+    missing_clauses: Optional[List[str]] = None
+    recommended_action: Optional[str] = None
+    confidence: Optional[float] = None
+    executive_summary: Optional[str] = None
+    findings: Optional[List[Dict[str, Any]]] = None
 
 
 class HealthResponse(BaseModel):
@@ -227,20 +260,16 @@ class HealthResponse(BaseModel):
     services: Dict[str, Any]
 
 
-# ── Helper: get client IP ───────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────
 
 def _client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For header."""
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "127.0.0.1"
 
 
-# ── Rate-limit helper ────────────────────────────────────────────────
-
 def _check_rate_limit(request: Request, limiter: RateLimiter, endpoint: str) -> None:
-    """Check rate limit and raise 429 if exceeded."""
     ip = _client_ip(request)
     if not limiter.is_allowed(ip):
         raise HTTPException(
@@ -251,11 +280,43 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, endpoint: str) -> 
     limiter.record(ip)
 
 
+def _validate_model(model: Optional[str]) -> str:
+    """Validate and return the model name. Defaults to settings.GROQ_MODEL."""
+    if model is None:
+        return settings.GROQ_MODEL
+    if model not in ALLOWED_MODELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported model '{model}'. Allowed: {', '.join(sorted(ALLOWED_MODELS))}.",
+        )
+    return model
+
+
+# ── Per-clause analysis task (runs in thread) ────────────────────────
+
+def _analyze_single_clause(clause: Dict, model: str) -> Dict[str, Any]:
+    """Analyze a single clause + RAG compare. Runs in a thread."""
+    analysis = contract_analyzer.analyze_clause(clause)
+    try:
+        comparison = rag_service.compare_clause(clause)
+        analysis["fair_alternatives"] = comparison.get("fair_alternatives", [])
+        analysis["comparison_notes"] = comparison.get("comparison_notes", "")
+    except Exception as exc:
+        logger.warning("RAG comparison skipped for clause %s: %s", clause.get("id"), exc)
+        analysis["fair_alternatives"] = []
+        analysis["comparison_notes"] = "RAG comparison unavailable."
+
+    analysis["id"] = clause.get("id", "")
+    analysis["title"] = clause.get("title", "")
+    analysis["content"] = clause.get("content", "")
+    analysis["type"] = clause.get("type", "general")
+    return analysis
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 @app.get("/")
 async def root():
-    """Welcome endpoint."""
     return {
         "message": "Welcome to ContractGuard API",
         "version": "1.0.0",
@@ -266,9 +327,6 @@ async def root():
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
-    """
-    Health check — reports status of all backend services.
-    """
     groq_status = "disconnected"
     try:
         settings.validate_groq_key()
@@ -293,19 +351,41 @@ async def health_check():
 
 
 @app.post("/api/analyze")
-async def analyze_contract(request: Request, file: UploadFile = File(...)):
+async def analyze_contract(
+    request: Request,
+    file: UploadFile = File(...),
+    model: Optional[str] = Form(None),
+    contract_type_override: Optional[str] = Form(None),
+):
     """
     Full contract analysis pipeline:
 
     1. Validate & save uploaded PDF
     2. Extract raw text
-    3. Segment into clauses
-    4. Analyze each clause with Groq LLM
-    5. Compare each clause with fair alternatives (RAG)
-    6. Generate overall risk assessment
-    7. Return complete structured analysis
+    3. Classify contract type
+    4. Segment into clauses
+    5. Analyze each clause with Groq LLM (parallel, concurrency=4)
+    6. Compare each clause with fair alternatives (RAG)
+    7. Run red-flag scanner
+    8. Run skill-based analysis (5Cs + findings)
+    9. Generate overall risk assessment
+    10. Return complete structured analysis
     """
     _check_rate_limit(request, analyze_limiter, "/api/analyze")
+    t_start = time.time()
+
+    # ── Validate model ─────────────────────────────────────────
+    selected_model = _validate_model(model)
+
+    # ── Validate contract_type_override ────────────────────────
+    ctype_override: Optional[str] = None
+    if contract_type_override:
+        if contract_type_override not in VALID_CONTRACT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid contract_type '{contract_type_override}'. Allowed: {', '.join(sorted(VALID_CONTRACT_TYPES))}.",
+            )
+        ctype_override = contract_type_override
 
     # ── Validate file ──────────────────────────────────────────
     if not file.filename:
@@ -314,22 +394,19 @@ async def analyze_contract(request: Request, file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400,
-            detail=f"File '{file.filename}' is not a PDF. Only .pdf files are accepted.",
+            detail=f"File '{file.filename}' is not a PDF.",
         )
 
-    # Check file size before reading (10 MB limit)
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     content = await file.read()
     if len(content) > max_bytes:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large ({len(content) / 1024 / 1024:.1f}MB). Maximum size is {settings.MAX_UPLOAD_SIZE_MB}MB.",
+            detail=f"File too large ({len(content) / 1024 / 1024:.1f}MB). Max {settings.MAX_UPLOAD_SIZE_MB}MB.",
         )
-
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    # ── Save to temp file ──────────────────────────────────────
     tmp_path = None
     try:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
@@ -350,7 +427,23 @@ async def analyze_contract(request: Request, file: UploadFile = File(...)):
             logger.exception("PDF extraction failed")
             raise HTTPException(status_code=500, detail=f"PDF extraction error: {e}")
 
-        # ── Step 2: Segment clauses ────────────────────────────
+        # ── Step 2: Classify contract type ─────────────────────
+        if ctype_override:
+            contract_type = ctype_override
+            type_confidence = 1.0
+        else:
+            contract_type, type_confidence = contract_classifier.classify(full_text)
+
+        logger.info("Contract type: %s (confidence=%.2f)", contract_type, type_confidence)
+
+        # ── Step 3: Run red-flag scanner ────────────────────────
+        red_flags: List[dict] = []
+        try:
+            red_flags = scan_red_flags(full_text, contract_type)
+        except Exception as exc:
+            logger.warning("Red-flag scanner failed: %s", exc)
+
+        # ── Step 4: Segment clauses ────────────────────────────
         try:
             clauses = pdf_extractor.segment_clauses(full_text)
         except Exception as e:
@@ -360,38 +453,81 @@ async def analyze_contract(request: Request, file: UploadFile = File(...)):
         if not clauses:
             raise HTTPException(
                 status_code=422,
-                detail="No clauses could be identified in the document. The PDF may be scanned or image-only.",
+                detail="No clauses could be identified in the document.",
             )
 
         logger.info("Extracted %d clauses from %d-character document.", len(clauses), len(full_text))
 
-        # ── Step 3: Analyze each clause ────────────────────────
+        # ── Step 5: Analyze each clause in parallel ─────────────
+        semaphore = asyncio.Semaphore(4)
+
+        async def analyze_with_limit(clause: Dict) -> Dict[str, Any]:
+            async with semaphore:
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(
+                    None, _analyze_single_clause, clause, selected_model,
+                )
+
+        tasks = [analyze_with_limit(clause) for clause in clauses]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
         analyzed_clauses: List[Dict[str, Any]] = []
-        for clause in clauses:
-            analysis = contract_analyzer.analyze_clause(clause)
-            # ── Step 4: RAG comparison ─────────────────────────
-            try:
-                comparison = rag_service.compare_clause(clause)
-                analysis["fair_alternatives"] = comparison.get("fair_alternatives", [])
-                analysis["comparison_notes"] = comparison.get("comparison_notes", "")
-            except Exception as exc:
-                logger.warning("RAG comparison skipped for clause %s: %s", clause.get("id"), exc)
-                analysis["fair_alternatives"] = []
-                analysis["comparison_notes"] = "RAG comparison unavailable."
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.warning("Clause %s analysis failed: %s", clauses[i].get("id"), result)
+                clause = clauses[i]
+                analyzed_clauses.append({
+                    "id": clause.get("id", f"clause_{i:03d}"),
+                    "title": clause.get("title", f"Clause {i+1}"),
+                    "content": clause.get("content", ""),
+                    "type": clause.get("type", "general"),
+                    "risk_level": "Medium",
+                    "risk_score": 50,
+                    "risk_factors": ["Analysis failed — manual review recommended."],
+                    "explanation": f"Automated analysis could not be completed: {result}",
+                    "suggested_alternative": clause.get("content", ""),
+                    "missing_protections": [],
+                    "fair_alternatives": [],
+                    "comparison_notes": "RAG comparison unavailable.",
+                })
+            else:
+                analyzed_clauses.append(result)
 
-            # Merge original clause data into analysis
-            analysis["id"] = clause.get("id", "")
-            analysis["title"] = clause.get("title", "")
-            analysis["content"] = clause.get("content", "")
-            analysis["type"] = clause.get("type", "general")
-
-            analyzed_clauses.append(analysis)
-
-        # ── Step 5: Overall contract assessment ─────────────────
+        # ── Step 6: Overall contract assessment ─────────────────
         overall = contract_analyzer.analyze_contract(analyzed_clauses)
+
+        # ── Step 7: Skill-based analysis ────────────────────────
+        five_c = None
+        skill_findings: List[dict] = []
+        missing_clauses: List[str] = []
+        negotiation_opportunities: List[dict] = []
+        recommended_action = None
+        confidence = None
+        executive_summary = None
+
+        try:
+            skill_result = skill_analyzer.analyze(full_text, contract_type)
+            five_c = skill_result.get("five_c")
+            skill_findings = skill_result.get("findings", [])
+            missing_clauses = skill_result.get("missing_clauses", [])
+            negotiation_opportunities = skill_result.get("negotiation_opportunities", [])
+            recommended_action = skill_result.get("recommended_action")
+            confidence = skill_result.get("confidence")
+            executive_summary = skill_result.get("executive_summary")
+        except Exception as exc:
+            logger.warning("Skill analysis failed (non-fatal): %s", exc)
 
         # ── Build response ─────────────────────────────────────
         remaining = analyze_limiter.remaining(_client_ip(request))
+
+        type_dist: Dict[str, int] = {}
+        for c in analyzed_clauses:
+            ct = c.get("type", "general")
+            type_dist[ct] = type_dist.get(ct, 0) + 1
+
+        elapsed = round(time.time() - t_start, 1)
+        logger.info("Analysis complete in %.1fs (%d clauses, type=%s)", elapsed, len(analyzed_clauses), contract_type)
+
         return JSONResponse(
             content={
                 "success": True,
@@ -402,7 +538,19 @@ async def analyze_contract(request: Request, file: UploadFile = File(...)):
                 "assessment": overall.get("summary", ""),
                 "total_clauses": len(analyzed_clauses),
                 "clauses": analyzed_clauses,
+                "type_distribution": type_dist,
                 "full_text_length": len(full_text),
+                # ── New fields ──────────────────────────────
+                "contract_type": contract_type,
+                "type_confidence": round(type_confidence, 4),
+                "five_c": five_c,
+                "red_flags": red_flags,
+                "missing_clauses": missing_clauses or [],
+                "negotiation_opportunities": negotiation_opportunities or [],
+                "recommended_action": recommended_action,
+                "confidence": confidence,
+                "executive_summary": executive_summary or "",
+                "analysis_time_seconds": elapsed,
             },
             headers={"X-RateLimit-Remaining": str(remaining)},
         )
@@ -419,14 +567,13 @@ async def analyze_contract(request: Request, file: UploadFile = File(...)):
 
 @app.post("/api/ask")
 async def ask_question(request: Request, payload: AskRequest):
-    """
-    Answer a question about a contract using the LLM.
-    """
+    """Answer a question about a contract using the LLM."""
     _check_rate_limit(request, ask_limiter, "/api/ask")
+
+    selected_model = _validate_model(payload.model)
 
     if not payload.contract_text.strip():
         raise HTTPException(status_code=400, detail="Contract text is required.")
-
     if not payload.question.strip():
         raise HTTPException(status_code=400, detail="Question is required.")
 
@@ -441,6 +588,7 @@ async def ask_question(request: Request, payload: AskRequest):
                 "success": True,
                 "question": payload.question,
                 "answer": answer,
+                "model": selected_model,
             },
             headers={"X-RateLimit-Remaining": str(remaining)},
         )
@@ -451,13 +599,11 @@ async def ask_question(request: Request, payload: AskRequest):
 
 @app.post("/api/report")
 async def generate_report(request: Request, payload: ReportRequest):
-    """
-    Generate a professional PDF report from analysis JSON.
-    """
+    """Generate a professional PDF report from analysis JSON."""
     _check_rate_limit(request, report_limiter, "/api/report")
 
     if not payload.clauses:
-        raise HTTPException(status_code=400, detail="No clauses provided for report generation.")
+        raise HTTPException(status_code=400, detail="No clauses provided.")
 
     try:
         analysis_result = {
@@ -466,6 +612,16 @@ async def generate_report(request: Request, payload: ReportRequest):
             "breakdown": payload.breakdown or {"High": 0, "Medium": 0, "Low": 0},
             "assessment": payload.assessment or "No assessment provided.",
             "total_clauses": len(payload.clauses),
+            # ── Forward new optional fields ──────────
+            "contract_type": payload.contract_type,
+            "five_c": payload.five_c,
+            "red_flags": payload.red_flags or [],
+            "negotiation_opportunities": payload.negotiation_opportunities or [],
+            "missing_clauses": payload.missing_clauses or [],
+            "recommended_action": payload.recommended_action,
+            "confidence": payload.confidence,
+            "executive_summary": payload.executive_summary or "",
+            "findings": payload.findings or [],
         }
 
         pdf_bytes = report_generator.generate_report(analysis_result)
@@ -492,11 +648,8 @@ async def generate_report(request: Request, payload: ReportRequest):
         raise HTTPException(status_code=500, detail=f"Report generation error: {e}")
 
 
-# ── Main ────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

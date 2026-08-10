@@ -11,7 +11,7 @@ import pytest
 # Ensure backend/ is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.services.rag_service import RAGService, COLLECTION_NAME
+from app.services.rag_service import RAGService, COLLECTION_NAME, rag_service as _singleton
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -41,9 +41,9 @@ def _ensure_clean_collection(rag: RAGService) -> None:
 
 @pytest.fixture(scope="module")
 def rag():
-    """Module-level RAGService instance."""
-    svc = RAGService()
-    return svc
+    """Module-level RAGService instance — reuse the singleton to avoid
+    Qdrant local-mode lock conflicts with test_day7."""
+    return _singleton
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────
@@ -211,11 +211,17 @@ class TestSimilaritySearch:
 
     @pytest.fixture(autouse=True)
     def setup_seed(self, rag):
-        """Seed test data before each test in this class."""
+        """Ensure collection exists with test data."""
         if not _qdrant_is_up(rag):
             return
 
-        _ensure_clean_collection(rag)
+        # Create collection if it doesn't exist (don't force recreate —
+        # other tests may rely on seeded data)
+        if not rag.collection_exists():
+            rag.create_collection(force_recreate=True)
+        else:
+            # Clean out any test-only data from previous run, then add fresh
+            rag.delete_all_clauses()
 
         # Add diverse test clauses
         test_clauses = [

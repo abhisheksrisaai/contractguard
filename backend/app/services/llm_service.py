@@ -226,6 +226,21 @@ class ContractAnalyzer:
         "modification": ["modify", "alter", "amend", "change", "waiver", "variation"],
         "indemnity": ["indemnify", "liability", "damage", "loss", "claim", "hold harmless"],
         "conflict": ["conflict", "interest", "compete", "solicit", "dual employment", "non-compete"],
+        # ── Employment-specific ──────────────────────────────
+        "notice": ["notice", "period", "resign", "quit", "resignation", "relieving"],
+        "hours": ["hours", "overtime", "working time", "shift", "workday", "rest break", "work week"],
+        "leave": ["leave", "holiday", "vacation", "sick", "annual leave", "paid time off", "pto"],
+        "termination": ["termination", "fired", "dismiss", "severance", "terminate", "dismissal"],
+        "benefits": ["benefit", "insurance", "medical", "health", "pension", "provident fund", "esi", "gratuity"],
+        "transfer": ["transfer", "relocate", "relocation", "move", "location", "deputation"],
+        "noncompete": ["non-compete", "non compete", "restrictive covenant", "competitor", "solicit", "poach"],
+        "ip": ["intellectual property", "invention", "copyright", "patent", "ownership", "created", "developed"],
+        "background_check": ["background", "criminal", "verification", "reference", "check", "screening"],
+        "travel": ["travel", "expense", "reimbursement", "per diem", "mileage", "transport"],
+        "training": ["training", "bond", "training cost", "education", "certification", "skill"],
+        "moonlighting": ["moonlight", "dual employment", "outside work", "freelance", "side business"],
+        "harassment": ["harassment", "discrimination", "grievance", "complaint", "workplace", "equal opportunity"],
+        "remote": ["remote", "work from home", "wfh", "telecommute", "hybrid", "virtual"],
     }
 
     def _find_relevant_clauses(self, contract_text: str, question: str) -> str:
@@ -346,6 +361,7 @@ class ContractAnalyzer:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         retries: int = 2,
+        model: Optional[str] = None,
     ) -> str:
         """
         Call Groq API with retry logic.
@@ -355,6 +371,7 @@ class ContractAnalyzer:
             user_message: User message / prompt.
             temperature: Sampling temperature.
             max_tokens: Max tokens in response.
+            model: Optional model override (defaults to settings.GROQ_MODEL).
             retries: Number of retry attempts on failure.
 
         Returns:
@@ -368,7 +385,7 @@ class ContractAnalyzer:
         for attempt in range(1, retries + 2):
             try:
                 completion = self.client.chat.completions.create(
-                    model=settings.GROQ_MODEL,
+                    model=model or settings.GROQ_MODEL,
                     messages=[
                         {"role": "system", "content": system},
                         {"role": "user", "content": user_message},

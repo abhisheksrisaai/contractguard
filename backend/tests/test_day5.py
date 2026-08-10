@@ -12,9 +12,19 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from main import app
+from main import app, analyze_limiter, ask_limiter, report_limiter
 
 client = TestClient(app)
+
+
+# ── Fixture: reset rate limiters before every test ───────────────────
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """Clear rate limiter state so tests never interfere with each other."""
+    analyze_limiter.reset()
+    ask_limiter.reset()
+    report_limiter.reset()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -58,7 +68,6 @@ class TestCORS:
     def test_cors_headers_present(self):
         """All responses should include CORS allow-origin."""
         resp = client.get("/")
-        # CORS headers should be present
         assert resp.status_code == 200
 
     def test_cors_reject_unknown_origin(self):
@@ -68,8 +77,6 @@ class TestCORS:
             headers={"Origin": "https://evil-site.com"},
         )
         assert resp.status_code == 200
-        # FastAPI CORS middleware: unknown origins get no allow-origin header
-        # (or are rejected), but the endpoint still works when called from TestClient
 
 
 # ── Rate Limiting Tests ──────────────────────────────────────────────────
@@ -79,7 +86,6 @@ class TestRateLimiting:
 
     def test_rate_limit_headers_present(self):
         """Rate-limited endpoints should include X-RateLimit-Remaining header."""
-        # Use /api/ask which is fast and rate-limited
         resp = client.post("/api/ask", json={
             "contract_text": "Client shall pay $100.",
             "question": "How much?",
@@ -125,7 +131,6 @@ class TestFileSizeLimits:
 
     def test_file_too_large(self):
         """Uploading > 10MB file should return 413."""
-        # Create a fake PDF that claims to be > 10MB
         large_content = b"%PDF-1.4\n" + b"x" * (11 * 1024 * 1024)  # 11MB
         files = {"file": ("large.pdf", io.BytesIO(large_content), "application/pdf")}
         resp = client.post("/api/analyze", files=files)
@@ -136,7 +141,7 @@ class TestFileSizeLimits:
         """Empty file upload should return 400."""
         files = {"file": ("empty.pdf", io.BytesIO(b""), "application/pdf")}
         resp = client.post("/api/analyze", files=files)
-        assert resp.status_code in (400, 422)
+        assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text[:200]}"
 
 
 # ── Error Recovery Tests ─────────────────────────────────────────────────
@@ -146,10 +151,9 @@ class TestErrorRecovery:
 
     def test_500_recovery(self):
         """Service should handle unexpected errors without crashing."""
-        # Non-PDF file is the simplest triggerable error path
         files = {"file": ("test.txt", io.BytesIO(b"hello"), "text/plain")}
         resp = client.post("/api/analyze", files=files)
-        assert resp.status_code == 400
+        assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text[:200]}"
         data = resp.json()
         assert "detail" in data
         assert "pdf" in data["detail"].lower()
@@ -161,12 +165,12 @@ class TestErrorRecovery:
             content=b"not json",
             headers={"Content-Type": "application/json"},
         )
-        assert resp.status_code in (400, 422)
+        assert resp.status_code == 422
 
     def test_report_empty_returns_error(self):
         """Empty report payload should return validation error."""
         resp = client.post("/api/report", json={"clauses": []})
-        assert resp.status_code in (400, 422)
+        assert resp.status_code == 422
 
     def test_health_never_fails(self):
         """Health endpoint should always return 200 even when services are down."""
@@ -177,15 +181,12 @@ class TestErrorRecovery:
 
     def test_server_continues_after_error(self):
         """After a 400 error, subsequent requests should still work."""
-        # Trigger a bad request
         client.post("/api/ask", json={"contract_text": "", "question": ""})
-        # Then make a valid request
         resp = client.post("/api/ask", json={
             "contract_text": "A valid contract text.",
             "question": "What does it say?",
         })
-        # Server should respond normally (not crashed)
-        assert resp.status_code in (200, 422, 500)
+        assert resp.status_code == 200
 
 
 # ── Request Logging Test ─────────────────────────────────────────────────
@@ -197,8 +198,6 @@ class TestRequestLogging:
         """Requests should be logged (we verify the endpoint still works)."""
         resp = client.get("/")
         assert resp.status_code == 200
-        # Logging is verified indirectly — if middleware wasn't working,
-        # the app would still handle the request but without log output.
 
 
 if __name__ == "__main__":
