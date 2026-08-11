@@ -76,13 +76,14 @@ export default function QAChat({ contractText, askQuestion }) {
               ) : (
                 <div>
                   <p className="text-xs font-bold text-accent-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" />Answer</p>
-                  <p className="text-sm text-white/70 leading-relaxed">{answer}</p>
+                  <p className="text-sm text-white/70 leading-relaxed break-words">{answer}</p>
                 </div>
               )}
             </div>
           )}
 
-          <div className="flex gap-2">
+          {/* Input + button — stacks on mobile */}
+          <div className="flex flex-col sm:flex-row gap-2">
             <input ref={inputRef} type="text" value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={handleKeyDown}
               placeholder={count >= MAX_QUESTIONS ? 'Question limit reached' : 'Ask a question about your contract...'}
               disabled={loading || count >= MAX_QUESTIONS}
@@ -92,8 +93,8 @@ export default function QAChat({ contractText, askQuestion }) {
               aria-label="Type your question"
             />
             <button onClick={() => handleAsk()} disabled={loading || !question.trim() || count >= MAX_QUESTIONS}
-              className="px-5 py-3 bg-accent-500 text-white rounded-xl font-semibold text-sm hover:bg-accent-600 transition
-                         disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 active:scale-95"
+              className="sm:w-auto w-full px-5 py-3 bg-accent-500 text-white rounded-xl font-semibold text-sm hover:bg-accent-600 transition
+                         disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 shrink-0"
               aria-label="Send question">
               {loading ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Ask
             </button>
@@ -117,7 +118,7 @@ export default function QAChat({ contractText, askQuestion }) {
               {history.map((h) => (
                 <details key={h.id} className="text-sm group">
                   <summary className="cursor-pointer text-white/50 hover:text-white transition py-1">{h.question}</summary>
-                  <p className="mt-2 text-white/40 bg-white/[0.03] p-3 rounded-xl border border-white/5 leading-relaxed">{h.answer}</p>
+                  <p className="mt-2 text-white/40 bg-white/[0.03] p-3 rounded-xl border border-white/5 leading-relaxed break-words">{h.answer}</p>
                 </details>
               ))}
             </div>

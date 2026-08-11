@@ -12,24 +12,28 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.services.rag_service import RAGService, COLLECTION_NAME
+from app.services.rag_service import RAGService, COLLECTION_NAME, rag_service as _singleton
+
+
+def _rag_available():
+    """True if singleton Qdrant is connected."""
+    try:
+        h = _singleton.health_check()
+        return h.get("qdrant_status") == "connected" and h.get("collection_exists")
+    except Exception:
+        return False
 
 
 @pytest.fixture(scope="module")
 def rag():
-    """Module-level RAGService (reuses singleton if available)."""
-    from app.services.rag_service import rag_service as _singleton
-    try:
-        _singleton.health_check()
-        return _singleton
-    except Exception:
-        return RAGService()
+    """Use singleton to avoid Qdrant lock conflicts with test_day2."""
+    return _singleton
 
 
 def _qdrant_up(rag):
     try:
-        rag.health_check()
-        return True
+        h = rag.health_check()
+        return h.get("qdrant_status") == "connected" and h.get("collection_exists")
     except Exception:
         return False
 

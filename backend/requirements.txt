@@ -11,7 +11,10 @@ pydantic==2.7.4
 pydantic-settings==2.3.4
 python-dotenv==1.0.1
 
-# LLM Provider
+# LLM Providers
+# Gemini free tier (1,500 req/day)
+google-generativeai==0.8.3
+# Groq (1,000 req/day free)
 groq==0.9.0
 
 # Vector Database (Day 3)

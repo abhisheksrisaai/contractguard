@@ -90,10 +90,10 @@ export default function App() {
   if (!analysis && !loading) {
     return (
       <ErrorBoundary onReset={handleReset}>
-        <div className="min-h-screen flex flex-col bg-black">
+        <div className="min-h-screen flex flex-col bg-black overflow-x-hidden">
           <Navbar />
           <HeroSection onUploadClick={scrollToUpload} onHowItWorksClick={scrollToHow} />
-          <section className="py-10 sm:py-12 px-4 sm:px-6 bg-[#0A0A0A] border-y border-white/5">
+          <section className="py-10 sm:py-12 px-4 sm:px-6 lg:px-8 bg-[#0A0A0A] border-y border-white/5">
             <div className="max-w-4xl mx-auto space-y-6">
               <ContractTypeSelector selected={selectedType} onChange={setSelectedType} />
               <ModelSelector selected={selectedModel} onChange={setSelectedModel} />
@@ -165,9 +165,9 @@ export default function App() {
 
   return (
     <ErrorBoundary onReset={handleReset}>
-      <div className="min-h-screen flex flex-col bg-black">
+      <div className="min-h-screen flex flex-col bg-black overflow-x-hidden">
         <Navbar compact onReset={handleReset} showReset />
-        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6" id="results">
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6" id="results">
 
           {/* Error */}
           {error && (
@@ -180,30 +180,30 @@ export default function App() {
 
           {/* ── Header Row ─────────────────── */}
           <div className="flex flex-wrap items-center gap-3 animate-slide-up">
-            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5">
+            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 shrink-0">
               <CheckCircle2 className="w-3 h-3" /> Analysis Complete
             </span>
             <span className="text-sm text-white/50 truncate">{analysis?.filename || 'Contract'}</span>
             <ContractTypeBadge contractType={analysis?.contract_type} confidence={analysis?.type_confidence} />
             {analysis?.analysis_time_seconds && (
-              <span className="text-[10px] text-white/30 ml-auto flex items-center gap-1">
+              <span className="text-[10px] text-white/30 ml-auto flex items-center gap-1 shrink-0">
                 <Clock className="w-3 h-3" /> {analysis.analysis_time_seconds}s
               </span>
             )}
           </div>
 
           {/* ── RISK SUMMARY CARD ──────────── */}
-          <div className={`card p-6 sm:p-8 animate-slide-up border-l-4 ${rc.border}`}>
-            <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
+          <div className={`card p-5 sm:p-6 md:p-8 animate-slide-up border-l-4 ${rc.border}`}>
+            <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-10">
               {/* Left: Score + Recommendation */}
-              <div className="space-y-5">
-                <div className={`text-5xl sm:text-6xl font-black tracking-tight ${rc.text}`}>{rl.word}</div>
+              <div className="space-y-4">
+                <div className={`text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight ${rc.text}`}>{rl.word}</div>
 
                 <div>
                   <span className="text-sm text-white/40">Confidence: <strong className="text-white">{analysis?.confidence ?? '—'}%</strong></span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className={`text-7xl font-black tracking-tight ${rc.text}`}>{Math.round(score)}</span>
-                    <span className="text-2xl text-white/20 font-bold">/100</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className={`text-4xl sm:text-5xl md:text-6xl font-black tracking-tight ${rc.text}`}>{Math.round(score)}</span>
+                    <span className="text-xl sm:text-2xl text-white/20 font-bold">/100</span>
                   </div>
                   {/* Progress bar */}
                   <div className="h-2 bg-white/10 rounded-full mt-3 overflow-hidden">
@@ -212,26 +212,26 @@ export default function App() {
                 </div>
 
                 {/* Recommendation banner */}
-                <div className={`border rounded-xl p-4 ${rc.border} ${rc.bgSoft}`}>
+                <div className={`border rounded-xl p-3 sm:p-4 ${rc.border} ${rc.bgSoft}`}>
                   <p className={`text-sm font-bold ${rc.text} mb-1`}>{rl.action} — {rl.word}</p>
-                  <p className="text-xs text-white/50">{analysis?.recommended_action === 'DO NOT SIGN' ? 'Critical risks identified — do not sign in current form' : analysis?.executive_summary || rl.sub}</p>
+                  <p className="text-xs text-white/50 break-words">{analysis?.executive_summary || rl.sub}</p>
                 </div>
               </div>
 
               {/* Right: 5C Strip */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-accent-400" />
+                  <Shield className="w-4 h-4 text-accent-400 shrink-0" />
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">5C Enforceability</h3>
                 </div>
                 {analysis?.five_c ? (
                   <FiveCStrip fiveC={analysis.five_c} />
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {['Capacity','Consent','Consideration','Clarity','Compliance'].map(c => (
                       <div key={c} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5">
-                        <div className="w-2 h-2 rounded-full bg-white/20" />
-                        <span className="text-xs text-white/40">{c}</span>
+                        <div className="w-2 h-2 rounded-full bg-white/20 shrink-0" />
+                        <span className="text-xs text-white/40 truncate">{c}</span>
                       </div>
                     ))}
                   </div>

@@ -45,8 +45,8 @@ class SkillAnalyzer:
         five_c_template = skill.get("five_c_section", "")
         areas_checklist = skill.get("areas_section", "")
 
-        # Trim contract text (LLM has token limits)
-        trimmed = contract_text[:12000]
+        # Trim contract text (token budget)
+        trimmed = contract_text[:9000]
 
         # ── CALL 1: 5Cs + summary ─────────────────────────────────
         call1_ok = False
@@ -167,7 +167,7 @@ class SkillAnalyzer:
         )
         user = (
             "Analyze this contract and respond with ONLY valid JSON:\n\n"
-            + trimmed_text[:10000]
+            + trimmed_text[:8000]
             + "\n\nJSON with keys: five_c (object with capacity/consent/"
             "consideration/clarity/compliance — each has status Pass|Partial|Fail, "
             "score 0-100, issues array), executive_summary (3-4 sentences), "
@@ -176,7 +176,7 @@ class SkillAnalyzer:
             "confidence (0-100). Only JSON, no commentary."
         )
 
-        raw = self.llm._call_groq(system, user, temperature=0.2, max_tokens=1024)
+        raw = self.llm._call_llm(system, user, temperature=0.2, max_tokens=1024)
         return self.llm._parse_json(raw)
 
     def _call_area_findings(
@@ -190,7 +190,7 @@ class SkillAnalyzer:
             + (areas_checklist or "")[:4000]
         )
         user = (
-            "Contract text:\n\n" + trimmed_text[:10000]
+            "Contract text:\n\n" + trimmed_text[:8000]
             + "\n\nReturn a JSON array of 8-12 findings. Each finding: "
             '{"area": "...", "severity": "CRITICAL|HIGH|MEDIUM|LOW", '
             '"finding": "...", "clause_reference": "...", '
@@ -199,7 +199,7 @@ class SkillAnalyzer:
             '"priority": "High|Medium|Low"}. Only JSON, no commentary.'
         )
 
-        raw = self.llm._call_groq(system, user, temperature=0.3, max_tokens=1500)
+        raw = self.llm._call_llm(system, user, temperature=0.3, max_tokens=1500)
         parsed = self.llm._parse_json(raw)
         if isinstance(parsed, list):
             return parsed

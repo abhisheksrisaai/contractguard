@@ -1,36 +1,57 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 
 const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 const SEVERITY_COLORS = {
   CRITICAL: 'border-red-500/30 bg-red-500/5 text-red-400',
   HIGH: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+  MEDIUM: 'border-white/10 bg-white/[0.02] text-white/50',
 };
+
+function truncateAtWord(text, max) {
+  if (!text || text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut) + '…';
+}
 
 export default function RedFlagBanner({ redFlags }) {
   if (!redFlags || redFlags.length === 0) return null;
 
   const critical = redFlags.filter((f) => f.severity === 'CRITICAL');
   const high = redFlags.filter((f) => f.severity === 'HIGH');
-  const sorted = [...redFlags].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99));
+  const hasCritical = critical.length > 0;
+  const hasHigh = high.length > 0;
+
+  // If no CRITICAL and no HIGH, render nothing (don't show a red banner saying 0 critical)
+  if (!hasCritical && !hasHigh) return null;
+
+  const sorted = [...redFlags].sort(
+    (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99)
+  );
 
   return (
-    <div className="card p-5 border-red-500/20 bg-red-500/[0.03] animate-slide-up">
+    <div className={`card p-5 animate-slide-up ${hasCritical ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-amber-500/20 bg-amber-500/[0.03]'}`}>
       <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle className="w-5 h-5 text-red-400" />
-        <h3 className="font-bold text-red-400">
-          {critical.length} Critical Red Flag{critical.length !== 1 ? 's' : ''} Detected
-          {high.length > 0 && ` • ${high.length} High`}
+        <AlertTriangle className={`w-5 h-5 ${hasCritical ? 'text-red-400' : 'text-amber-400'}`} />
+        <h3 className={`font-bold ${hasCritical ? 'text-red-400' : 'text-amber-400'}`}>
+          {hasCritical && `${critical.length} Critical Red Flag${critical.length !== 1 ? 's' : ''}`}
+          {hasCritical && hasHigh && ' • '}
+          {hasHigh && `${high.length} High`}
         </h3>
       </div>
       <div className="space-y-2">
         {sorted.slice(0, 6).map((f, i) => {
-          const sevStyle = SEVERITY_COLORS[f.severity] || 'border-white/10 bg-white/[0.02] text-white/50';
+          const sevStyle = SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.MEDIUM;
           return (
             <div key={i} className={`flex items-start gap-2.5 p-3 rounded-xl border ${sevStyle}`}>
               <span className="text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">{f.severity}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm">{f.pattern || f.finding || ''}</p>
-                {f.evidence && <p className="text-[11px] text-white/30 mt-0.5 italic truncate">{f.evidence}</p>}
+                <p className="text-sm break-words">{f.pattern || f.finding || ''}</p>
+                {f.evidence && (
+                  <p className="text-[11px] text-white/30 mt-0.5 italic break-words">
+                    {truncateAtWord(f.evidence, 120)}
+                  </p>
+                )}
               </div>
             </div>
           );

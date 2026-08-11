@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
-from app.services.pdf_extractor import PDFExtractor
+from app.services.pdf_extractor import PDFExtractor, ScannedPDFError
 from app.services.llm_service import ContractAnalyzer
 from app.services.rag_service import RAGService
 from app.services.report_generator import ReportGenerator
@@ -421,6 +421,8 @@ async def analyze_contract(
             full_text = pdf_extractor.extract_text(tmp_path)
         except FileNotFoundError:
             raise HTTPException(status_code=400, detail="PDF file could not be read.")
+        except ScannedPDFError as e:
+            raise HTTPException(status_code=422, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except Exception as e:
@@ -643,9 +645,11 @@ async def generate_report(request: Request, payload: ReportRequest):
                 "X-RateLimit-Remaining": str(remaining),
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Report generation failed")
-        raise HTTPException(status_code=500, detail=f"Report generation error: {e}")
+        raise HTTPException(status_code=500, detail="Report generation failed. Please try again.")
 
 
 if __name__ == "__main__":

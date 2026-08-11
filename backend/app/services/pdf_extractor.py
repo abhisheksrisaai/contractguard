@@ -3,6 +3,7 @@ ContractGuard - PDF Extraction & Clause Segmentation Service
 
 Handles:
 - Extracting raw text from PDF contracts (PyMuPDF + pdfplumber fallback)
+- Detecting garbled/scanned PDFs with broken text layers
 - Segmenting extracted text into logical clauses
 - Classifying each clause by type (payment, termination, liability, etc.)
 """
@@ -15,6 +16,13 @@ from typing import Dict, List, Optional
 import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
+
+
+# ── Custom exception for scanned/garbled PDFs ───────────────────────
+
+class ScannedPDFError(ValueError):
+    """Raised when extracted text is garbled (scanned image with broken text layer)."""
+    pass
 
 
 # ── Clause type patterns for regex-based classification ──────────────
@@ -176,6 +184,14 @@ class PDFExtractor:
         if not full_text.strip():
             raise ValueError(f"No extractable text found in {path.name}.")
 
+        # ── Garbled text detection ──────────────────────────────
+        if self.is_garbled(full_text):
+            raise ScannedPDFError(
+                "This PDF appears to be a scanned image with no readable text layer. "
+                "Please upload a text-based PDF (exported from Word/Google Docs) "
+                "or a higher-quality scan."
+            )
+
         logger.info("Extracted %d characters from %d page(s).", len(full_text), len(text_blocks))
         return full_text
 
@@ -194,6 +210,58 @@ class PDFExtractor:
         except Exception as exc:
             logger.warning("pdfplumber fallback also failed: %s", exc)
             return []
+
+    # ── Garbled Text Detection ─────────────────────────────────────
+
+    PUNCTUATION_OK = set(".,;:!?()[]{}'\"-—–/\\&@#%*+=<>|~`$€£¥ ")  # noqa: E501
+
+    @classmethod
+    def is_garbled(cls, text: str) -> bool:
+        """
+        Detect scanned/garbled text with broken embedded text layers.
+
+        Heuristics:
+        (a) Alphanumeric + normal-punctuation ratio < 0.75
+        (b) Word-like tokens (2+ letters) ratio < 0.5 of all tokens
+        (c) Non-printable/special-char density > 15% of non-space chars
+
+        Returns True if any heuristic fires (text is garbled).
+        """
+        if not text or len(text) < 100:
+            return False  # too short to judge
+
+        # Use a sample (first 5000 chars) for performance
+        sample = text[:5000]
+
+        # ── Heuristic (a): alphanumeric + ok-punctuation ratio ────
+        good_chars = sum(1 for c in sample if c.isalnum() or c in cls.PUNCTUATION_OK or c == '\n')
+        ratio_a = good_chars / max(len(sample), 1)
+
+        # ── Heuristic (b): word-like token ratio ─────────────────
+        tokens = sample.split()
+        word_like = sum(1 for t in tokens if re.match(r'[A-Za-z]{2,}', t))
+        ratio_b = word_like / max(len(tokens), 1)
+
+        # ── Heuristic (c): special-char density ──────────────────
+        non_space = [c for c in sample if c != ' ']
+        if non_space:
+            special = sum(
+                1 for c in non_space
+                if not c.isalnum() and c not in cls.PUNCTUATION_OK and c != '\n'
+            )
+            ratio_c = special / len(non_space)
+        else:
+            ratio_c = 0.0
+
+        garbled = ratio_a < 0.75 or ratio_b < 0.5 or ratio_c > 0.15
+
+        if garbled:
+            logger.warning(
+                "Garbled text detected — ratios: alphanum+ok=%.3f, wordlike=%.3f, special=%.3f",
+                ratio_a, ratio_b, ratio_c,
+            )
+
+        return garbled
 
     # ── Clause Segmentation ───────────────────────────────────────────
 

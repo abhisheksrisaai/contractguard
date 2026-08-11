@@ -266,11 +266,11 @@
   <thead><tr><th>C</th><th>Status</th><th>Score</th><th>Issues</th></tr></thead>
   <tbody>
     {% for ckey in ['capacity','consent','consideration','clarity','compliance'] %}
-    {% set cdata = five_c.get(ckey, {}) %}
+    {% set cdata = five_c.get(ckey) or {} %}
     <tr>
       <td><strong>{{ ckey | title }}</strong></td>
       <td>
-        {% if cdata.get('status') == 'Pass' %}
+        {% if (cdata.get('status') or '') == 'Pass' %}
         <span class="status-pass">✓ Pass</span>
         {% elif cdata.get('status') == 'Fail' %}
         <span class="status-fail">✗ Fail</span>
@@ -298,9 +298,9 @@
   <h3>⚠ Critical Risk Flags Detected</h3>
   {% for rf in red_flags[:10] %}
   <div class="red-flag-item">
-    <span class="rf-sev {{ rf.severity | lower }}">{{ rf.severity }}</span>
+    <span class="rf-sev {{ (rf.severity or 'HIGH') | lower }}">{{ rf.severity or 'HIGH' }}</span>
     {{ rf.pattern or rf.finding or '' }}
-    {% if rf.evidence %}<div class="rf-evidence">{{ rf.evidence[:150] }}</div>{% endif %}
+    {% if rf.evidence %}<div class="rf-evidence">{{ (rf.evidence or '')[:150] }}</div>{% endif %}
   </div>
   {% endfor %}
   {% if red_flags | length > 10 %}<p style="font-size:8pt; color:#888; margin-top:6px;">+{{ red_flags|length - 10 }} more</p>{% endif %}
@@ -332,10 +332,10 @@
   <tbody>
     {% for f in findings %}
     <tr>
-      <td><span class="sev-{{ f.severity | lower }}">{{ f.severity }}</span></td>
-      <td>{{ f.area or '—' }}</td>
+      <td><span class="sev-{{ (f.severity or 'low') | lower }}">{{ f.severity or 'LOW' }}</span></td>
+      <td>{{ f.area or 'General' }}</td>
       <td>{{ f.finding or f.pattern or '' }}</td>
-      <td>{{ (f.suggested_negotiation or '')[:200] }}</td>
+      <td>{{ ((f.suggested_negotiation or '') or '')[:200] }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -362,7 +362,7 @@
       </div>
       <div class="clause-field">
         <div class="field-label">Original Text</div>
-        <div class="field-value original">{{ clause.content[:600] }}{% if clause.content|length > 600 %}...{% endif %}</div>
+        <div class="field-value original">{{ (clause.content or '')[:600] }}{% if (clause.content or '')|length > 600 %}...{% endif %}</div>
       </div>
       <div class="clause-field">
         <div class="field-label">Risk Explanation</div>
@@ -392,8 +392,8 @@
         {% for alt in clause.fair_alternatives %}
         <div class="alt-item">
           <div class="alt-title">{{ alt.title }}</div>
-          <div class="alt-score">Match: {{ (alt.score * 100)|int }}%</div>
-          <div class="alt-content">{{ alt.content[:300] }}{% if alt.content|length > 300 %}...{% endif %}</div>
+          <div class="alt-score">Match: {{ ((alt.score or 0) * 100)|int }}%</div>
+          <div class="alt-content">{{ (alt.content or '')[:300] }}{% if (alt.content or '')|length > 300 %}...{% endif %}</div>
         </div>
         {% endfor %}
         {% if clause.comparison_notes %}
@@ -414,7 +414,7 @@
 <div class="nego-item">
   <div class="nego-header">
     <span class="nego-priority {{ (n.priority or 'low')|lower }}">{{ n.priority or 'Medium' }} Priority</span>
-    <strong style="font-size:10pt;">{{ n.risk }}</strong>
+    <strong style="font-size:10pt;">{{ n.risk or 'Risk Item' }}</strong>
   </div>
   {% if n.why_it_matters %}<p style="font-size:8.5pt; color:#555; margin-bottom:3px;">{{ n.why_it_matters }}</p>{% endif %}
   {% if n.industry_best_practice %}<p style="font-size:8.5pt; color:#555; margin-bottom:3px;"><em>Best practice:</em> {{ n.industry_best_practice }}</p>{% endif %}
