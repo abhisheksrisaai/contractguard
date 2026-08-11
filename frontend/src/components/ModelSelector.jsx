@@ -1,8 +1,9 @@
-import { Zap, Cpu } from 'lucide-react';
+import { Sparkles, Zap, Cpu } from 'lucide-react';
 
 const MODELS = [
-  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', desc: 'Best quality', icon: Cpu },
-  { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B', desc: 'Best for long contracts', icon: Zap },
+  { id: 'auto', label: 'Auto', desc: 'Best available — recommended', icon: Sparkles },
+  { id: 'gemini', label: 'Gemini 2.0 Flash', desc: 'Fast, great with long contracts', icon: Zap },
+  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', desc: 'Deepest reasoning', icon: Cpu },
 ];
 
 export default function ModelSelector({ selected, onChange }) {

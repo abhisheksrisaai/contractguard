@@ -55,8 +55,14 @@ skill_analyzer = SkillAnalyzer(contract_analyzer, rag_service)
 
 # ── Allowed models ───────────────────────────────────────────────────
 ALLOWED_MODELS = {
+    "auto",  # use provider chain
+    "gemini",
     "llama-3.3-70b-versatile",
-    "mixtral-8x7b-32768",
+}
+MODEL_LABELS = {
+    "auto": "Auto",
+    "gemini": "Gemini 2.0 Flash",
+    "llama-3.3-70b-versatile": "Llama 3.3 70B",
 }
 VALID_CONTRACT_TYPES = {
     "employment_contract", "supplier_contract", "works_contract",
@@ -530,6 +536,15 @@ async def analyze_contract(
         elapsed = round(time.time() - t_start, 1)
         logger.info("Analysis complete in %.1fs (%d clauses, type=%s)", elapsed, len(analyzed_clauses), contract_type)
 
+        # ── Determine ai_provider from call log ───────────────
+        call_log = contract_analyzer._call_log
+        ai_provider = "fallback"
+        if call_log:
+            from collections import Counter
+            top = Counter(call_log).most_common(1)[0][0]
+            ai_provider = top
+        contract_analyzer._call_log = []  # reset for next request
+
         return JSONResponse(
             content={
                 "success": True,
@@ -553,6 +568,7 @@ async def analyze_contract(
                 "confidence": confidence,
                 "executive_summary": executive_summary or "",
                 "analysis_time_seconds": elapsed,
+                "ai_provider": ai_provider,
             },
             headers={"X-RateLimit-Remaining": str(remaining)},
         )

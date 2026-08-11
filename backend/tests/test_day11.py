@@ -165,5 +165,78 @@ def test_daily_quota_marks_exhausted():
         assert call_order[0] == "groq"
 
 
+# ── 7. Model override: "gemini" accepted ─────────────────────────
+
+def test_analyze_model_gemini_accepted():
+    """POST /api/analyze with model=gemini should return 200."""
+    import io, fitz
+    from fastapi.testclient import TestClient
+    from main import app
+    client = TestClient(app)
+
+    doc = fitz.open()
+    page = doc.new_page()
+    rect = fitz.Rect(50, 50, 550, 800)
+    text = "EMPLOYMENT AGREEMENT\n\n1. Salary. Rs. 50,000 per month.\n\n2. Notice. 30 days.\n\n3. Law. India."
+    page.insert_textbox(rect, text, fontsize=11, fontname="helv")
+    buf = io.BytesIO()
+    doc.save(buf)
+    doc.close()
+
+    files = {"file": ("test.pdf", io.BytesIO(buf.getvalue()), "application/pdf")}
+    resp = client.post("/api/analyze", files=files, data={"model": "gemini"})
+    if resp.status_code == 429:
+        pytest.skip("Rate limited")
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text[:200]}"
+    data = resp.json()
+    assert "ai_provider" in data, "Response missing ai_provider"
+    assert data["ai_provider"] in ("gemini", "groq", "groq_8b", "fallback")
+
+
+def test_analyze_model_mixtral_rejected():
+    """mixtral-8x7b-32768 is no longer in ALLOWED_MODELS → 400."""
+    import io, fitz
+    from fastapi.testclient import TestClient
+    from main import app
+    client = TestClient(app)
+
+    doc = fitz.open()
+    page = doc.new_page()
+    rect = fitz.Rect(50, 50, 550, 800)
+    page.insert_textbox(rect, "Test.", fontsize=11, fontname="helv")
+    buf = io.BytesIO()
+    doc.save(buf)
+    doc.close()
+
+    files = {"file": ("test.pdf", io.BytesIO(buf.getvalue()), "application/pdf")}
+    resp = client.post("/api/analyze", files=files, data={"model": "mixtral-8x7b-32768"})
+    if resp.status_code == 429:
+        pytest.skip("Rate limited")
+    assert resp.status_code == 400, f"Expected 400, got {resp.status_code}"
+    assert "Unsupported model" in resp.json()["detail"]
+
+
+def test_model_not_allowed_rejected():
+    """Unknown model → 400."""
+    import io, fitz
+    from fastapi.testclient import TestClient
+    from main import app
+    client = TestClient(app)
+
+    doc = fitz.open()
+    page = doc.new_page()
+    rect = fitz.Rect(50, 50, 550, 800)
+    page.insert_textbox(rect, "Test.", fontsize=11, fontname="helv")
+    buf = io.BytesIO()
+    doc.save(buf)
+    doc.close()
+
+    files = {"file": ("test.pdf", io.BytesIO(buf.getvalue()), "application/pdf")}
+    resp = client.post("/api/analyze", files=files, data={"model": "definitely-not-a-model"})
+    if resp.status_code == 429:
+        pytest.skip("Rate limited")
+    assert resp.status_code == 400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

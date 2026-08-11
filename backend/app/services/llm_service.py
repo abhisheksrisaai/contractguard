@@ -76,7 +76,8 @@ class ContractAnalyzer:
     def __init__(self) -> None:
         self._groq_client: Any = None
         self._gemini_client: Any = None
-        self._daily_exhausted: Set[str] = set()  # provider names that hit daily quota
+        self._daily_exhausted: Set[str] = set()
+        self._call_log: List[str] = []  # track which providers served each call
 
     # ── Provider Initialization ──────────────────────────────────
 
@@ -131,6 +132,18 @@ class ContractAnalyzer:
         """
         providers_list = [p.strip() for p in settings.PROVIDER_ORDER.split(",") if p.strip()]
 
+        # ── Model override: reorder provider chain ─────────────
+        if model and model != "auto":
+            if model == "gemini":
+                # Move gemini to front
+                if "gemini" in providers_list:
+                    providers_list.remove("gemini")
+                providers_list.insert(0, "gemini")
+            elif model.startswith("llama"):
+                # Use groq with this specific model (but still fall through
+                # to other providers if groq is exhausted)
+                pass  # _call_single_provider handles the model arg for groq
+
         for provider_name in providers_list:
             if provider_name in self._daily_exhausted:
                 logger.debug("Provider '%s' marked daily-exhausted, skipping.", provider_name)
@@ -141,6 +154,7 @@ class ContractAnalyzer:
                     provider_name, system, user_message, temperature, max_tokens, model,
                 )
                 logger.info("Provider '%s' succeeded.", provider_name)
+                self._call_log.append(provider_name)
                 return result
             except RuntimeError as exc:
                 # Daily quota → mark exhausted, fall through

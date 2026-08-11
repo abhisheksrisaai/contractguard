@@ -50,7 +50,7 @@ export async function analyzeContract(file, opts = {}) {
   const formData = new FormData();
   formData.append('file', file);
   if (contractType) formData.append('contract_type_override', contractType);
-  if (model) formData.append('model', model);
+  if (model && model !== 'auto') formData.append('model', model);
 
   const { data } = await api.post('/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

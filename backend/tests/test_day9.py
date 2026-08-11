@@ -178,7 +178,7 @@ class TestModelOverride:
         resp = client.post("/api/ask", json={
             "contract_text": "A valid contract text about payment.",
             "question": "What payment terms?",
-            "model": "mixtral-8x7b-32768",
+            "model": "auto",
         })
         if resp.status_code == 429:
             pytest.skip("Rate limited")

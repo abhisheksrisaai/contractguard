@@ -43,7 +43,7 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
-  const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile');
+  const [selectedModel, setSelectedModel] = useState('auto');
 
   const addToast = useCallback((message, type = 'info') => {
     const id = ++toastId;
@@ -191,6 +191,15 @@ export default function App() {
               </span>
             )}
           </div>
+          {/* ── AI Provider line ──────────── */}
+          {(analysis?.ai_provider && analysis.ai_provider !== 'fallback') && (
+            <p className="text-[10px] text-white/30 -mt-2 animate-fade-in">
+              Powered by {analysis.ai_provider === 'gemini' ? 'Gemini 2.0 Flash' : analysis.ai_provider === 'groq' ? 'Llama 3.3 70B' : analysis.ai_provider === 'groq_8b' ? 'Llama 3.1 8B' : analysis.ai_provider}
+            </p>
+          )}
+          {analysis?.ai_provider === 'fallback' && (
+            <p className="text-[10px] text-amber-400/60 -mt-2 animate-fade-in">Heuristic mode — AI quota reached, manual review recommended</p>
+          )}
 
           {/* ── RISK SUMMARY CARD ──────────── */}
           <div className={`card p-5 sm:p-6 md:p-8 animate-slide-up border-l-4 ${rc.border}`}>
