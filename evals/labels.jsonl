@@ -1,0 +1,30 @@
+{"contract": "employment_sample", "clause_id": "clause_002", "title": "1. Notice Period", "expected": "Medium", "rationale": "7-day notice plus unilateral salary deduction; aggressive but bounded."}
+{"contract": "employment_sample", "clause_id": "clause_003", "title": "2. Working Hours", "expected": "High", "rationale": "9am-7pm Mon-Sat plus Sundays, overtime at straight time; excessive hours, no premium."}
+{"contract": "employment_sample", "clause_id": "clause_004", "title": "3. Non-Compete", "expected": "High", "rationale": "3-year pan-India ban with no compensation during the restricted period."}
+{"contract": "employment_sample", "clause_id": "clause_005", "title": "4. Confidentiality", "expected": "Medium", "rationale": "Overbroad (covers even publicly available info) but time-bounded at 5 years."}
+{"contract": "employment_sample", "clause_id": "clause_006", "title": "5. Intellectual Property", "expected": "High", "rationale": "Assigns all inventions regardless of working hours or company resources."}
+{"contract": "employment_sample", "clause_id": "clause_007", "title": "6. Salary", "expected": "High", "rationale": "Unbounded unilateral deduction for any reason deemed appropriate."}
+{"contract": "employment_sample", "clause_id": "clause_008", "title": "7. Termination", "expected": "High", "rationale": "Termination any time without notice or cause plus forfeiture of unpaid benefits."}
+{"contract": "employment_sample", "clause_id": "clause_009", "title": "8. Indemnity", "expected": "High", "rationale": "No-fault indemnity against all claims arising from performance of duties."}
+{"contract": "employment_sample", "clause_id": "clause_010", "title": "9. Transfer", "expected": "Medium", "rationale": "Anywhere-in-India transfer on 5 days with no relocation help; burdensome but bounded."}
+{"contract": "employment_sample", "clause_id": "clause_011", "title": "10. Gratuity", "expected": "High", "rationale": "Discretionary gratuity conditional on client payment (pay-when-paid on a benefit)."}
+{"contract": "fair_sample", "clause_id": "clause_002", "title": "1. Fair Payment Terms", "expected": "Low", "rationale": "30-day pay, disputed-portion process, capped late interest; balanced."}
+{"contract": "fair_sample", "clause_id": "clause_003", "title": "2. Fair Termination Clause", "expected": "Low", "rationale": "Curated fair-library termination language."}
+{"contract": "fair_sample", "clause_id": "clause_004", "title": "3. Balanced Limitation of Liability", "expected": "Low", "rationale": "Capped, mutual liability; the fair alternative to uncapped exposure."}
+{"contract": "fair_sample", "clause_id": "clause_005", "title": "4. Mutual Confidentiality Clause", "expected": "Low", "rationale": "Mutual obligations with standard carve-outs."}
+{"contract": "fair_sample", "clause_id": "clause_006", "title": "5. Balanced IP Ownership", "expected": "Low", "rationale": "Scope-limited IP assignment."}
+{"contract": "fair_sample", "clause_id": "clause_007", "title": "6. Fair Employee Notice Period", "expected": "Low", "rationale": "Symmetric, reasonable notice."}
+{"contract": "fair_sample", "clause_id": "clause_008", "title": "7. Fair Employer Termination Procedure", "expected": "Low", "rationale": "Cause-plus-notice procedure."}
+{"contract": "fair_sample", "clause_id": "clause_009", "title": "8. Fair Employee Confidentiality Clause", "expected": "Low", "rationale": "Time-bounded, carve-outs for public information."}
+{"contract": "fair_sample", "clause_id": "clause_010", "title": "9. Fair Employee Salary Payment Terms", "expected": "Low", "rationale": "Fixed pay date, no unilateral deductions."}
+{"contract": "fair_sample", "clause_id": "clause_011", "title": "10. Fair Employee Working Hours Clause", "expected": "Low", "rationale": "Statutory hours with premium overtime."}
+{"contract": "supplier_sample", "clause_id": "clause_002", "title": "1. Fair Supplier Payment Terms", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_003", "title": "2. Fair Supplier Delivery Terms", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_004", "title": "3. Fair Supplier Pricing Clause", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_005", "title": "4. Fair Supplier Quality Standards", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_006", "title": "5. Fair Supplier Warranty Terms", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_007", "title": "6. Fair Supplier Defect Liability Period", "expected": "Low", "rationale": "Curated fair-library supplier language."}
+{"contract": "supplier_sample", "clause_id": "clause_008", "title": "7. Balanced Supplier Liability Clause", "expected": "Low", "rationale": "Capped, mutual liability."}
+{"contract": "supplier_sample", "clause_id": "clause_009", "title": "8. Fair Supplier Indemnity Clause", "expected": "Low", "rationale": "Fault-based, carved indemnity."}
+{"contract": "supplier_sample", "clause_id": "clause_010", "title": "9. Fair Supplier Termination Clause", "expected": "Low", "rationale": "Symmetric termination rights."}
+{"contract": "supplier_sample", "clause_id": "clause_011", "title": "10. Fair Supplier Force Majeure Clause", "expected": "Low", "rationale": "Standard force-majeure relief."}

@@ -1,0 +1,10 @@
+{
+  "mode": "offline",
+  "contracts": 3,
+  "clauses": 30,
+  "scanner_precision": 0.0,
+  "scanner_recall": 0.0,
+  "llm_agreement": 0.1,
+  "high_recall": 1.0,
+  "review_rate": 1.0
+}

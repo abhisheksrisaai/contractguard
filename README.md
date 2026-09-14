@@ -166,6 +166,67 @@ pytest tests/ -v
 
 ---
 
+## 🎯 Risk Rubric
+
+The LLM scores every clause High / Medium / Low. What each level means, with real examples from the test contracts:
+
+| Level | Rule | Real example | Why it lands here |
+|---|---|---|---|
+| High | One-sided power, uncapped exposure, or forfeiture of earned rights | Termination, `documents/sample_employment_contract.html`: "The Employer may terminate employment at any time without notice or cause. The Employee forfeits all unpaid benefits upon termination." | No notice, no cause, plus benefits forfeiture. Live score: High / 92. |
+| High | No-fault or uncapped liability shift | Indemnity, same contract: "The Employee shall indemnify the Employer against all claims, losses, and expenses … regardless of fault." | Indemnity without fault or cap. |
+| Medium | Burdensome but bounded | Transfer, same contract: "transfer to any location within India … with 5 days notice and no relocation assistance." | Heavy burden, but notice-given and finite. |
+| Low | Balanced, mutual, or capped | Fair Payment Terms, `backend/clause_library/fair_clauses.json`: 30-day pay, disputed-portion process, interest capped at the lawful maximum. | Every burden has a matching protection. |
+
+## 🧍 Confidence & Human Review
+
+Scores below **confidence 60** are provisional: the API still returns them (the pipeline needs a number) but sets `needs_human_review: true`, and the frontend should gate on it instead of auto-accepting. Response carries `needs_review_count` + `needs_review_clause_ids`.
+
+| Path | Confidence | Reviewed? |
+|---|---|---|
+| Clean model JSON | 85 (−10 if clause < 120 chars: thin signal) | No |
+| Truncated JSON, decision fields recovered | 70 | No |
+| Unparsable output, fields heuristically extracted | 55 | **Yes** |
+| All providers down → Medium/50 fallback | 40 | **Yes** |
+
+Measured on the eval set (`evals/run_eval.py`): live review rate **0.00** (30/30 parsed), offline (no keys) **1.00** — the flag path provably fires when the LLM is unreachable. Unit-covered in `backend/tests/test_confidence_review.py`.
+
+## 🔎 Tracing
+
+Every request emits structured JSON lines on the `contractguard.trace` logger (stdout; collect with any log shipper):
+
+| Event | Key fields |
+|---|---|
+| `analyze` | `request_id`, `contract_type`, `type_confidence`, `total_clauses`, `needs_review_*`, `overall_score`, `ai_provider`, `requested_model`, prompt versions, `elapsed_seconds` |
+| `clause_scored` | `request_id`, `clause_id`, `risk_level/score`, `confidence`, `needs_human_review`, `parse_quality`, model + prompt versions |
+| `clause_rag` | `request_id`, `clause_id`, `fair_alternatives` (retrieved fair-clause count) |
+| `qa` | `request_id`, `question`, `retrieved_passages/chars`, `answer_chars`, model + prompt versions |
+
+Prompt versions (`cg-sys-v2`, `cg-analyze-v3`, `cg-qna-v2`) live in `llm_service.py`; bump on template edits. Swap path: replace `trace_log` in `backend/app/core/tracing.py` with a LangSmith/Langfuse client — call sites already pass event-shaped payloads.
+
+## 🛡️ Hardening
+
+| Failure | Behavior | Where |
+|---|---|---|
+| Groq rate limits / outages | 3 attempts with exponential backoff per provider; daily-quota errors skip to the next provider instead of retrying; total outage returns a labeled Medium/50 heuristic, never a 500 | `llm_service.py` `_call_groq` / `_call_llm`, tested in `test_day11.py` |
+| Dead model names | 2026-09-13 probe: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `gemini-2.0-flash` all 404. Defaults now point at verified-live `openai/gpt-oss-120b` (Groq primary, 1.9 s clean-JSON score) and `gemini-3.6-flash`; chain reordered groq-first | `config.py`, `.env.example`, probed live before changing |
+| Scanned / image-only PDFs | pdfplumber fallback when PyMuPDF yields nothing; garbled-text heuristics (char/word/special ratios) raise `ScannedPDFError` → HTTP 422 with a plain-language message | `pdf_extractor.py`, tested in `test_day9.py` |
+| WeasyPrint failure | Missing system libs detected once and cached; template render retries with a stripped context; any PDF failure returns the HTML report instead of erroring | `report_generator.py`, tested in `test_day10.py` |
+
+## 📊 Eval
+
+`evals/` holds 3 contracts (30 labeled clauses: the 10-clause sample employment contract, 10 fair clauses, 10 supplier fair clauses), single-reviewer labels with per-clause rationale, and `run_eval.py` (offline heuristic mode + `--live` real-LLM mode). Reproduce: `backend/venv/bin/python evals/run_eval.py [--live]`.
+
+| Slice (2026-09-13) | Offline | Live (gpt-oss-120b) |
+|---|---|---|
+| Scanner risky-clause precision / recall | 0.00 / 0.00 | 0.00 / 0.00 |
+| LLM reviewer agreement (30 clauses) | 0.10 | 0.23 (employment 7/10, fair 0/10, supplier 0/10) |
+| Flagged for human review | 1.00 | 0.00 |
+| High-risk recall (no risky clause passes silently) | 1.00 | **1.00** |
+
+Read of the misses: the regex scanner has no recall on the sample contract (real risky phrasings like "may terminate … without notice" don't match its patterns) and over-fires twice on fair language ("in no event" in a standard waiver; "indemnify and hold harmless" with carve-outs). The LLM catches all 10 risky employment clauses but grades fair language harshly. The CI-style gate therefore pins **high-risk recall ≥ 0.85** — the dangerous direction for a safety tool — while precision/agreement stay informational. Planned, not yet implemented: scanner patterns mined from these misses + fair-language few-shots in the scoring prompt.
+
+---
+
 ## 🎓 Faculty Submission Documents
 
 | Document | Description |
