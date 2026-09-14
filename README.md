@@ -177,6 +177,8 @@ The LLM scores every clause High / Medium / Low. What each level means, with rea
 | Medium | Burdensome but bounded | Transfer, same contract: "transfer to any location within India … with 5 days notice and no relocation assistance." | Heavy burden, but notice-given and finite. |
 | Low | Balanced, mutual, or capped | Fair Payment Terms, `backend/clause_library/fair_clauses.json`: 30-day pay, disputed-portion process, interest capped at the lawful maximum. | Every burden has a matching protection. |
 
+> Design note: the deterministic regex scanner is a pre-filter, not a detector — on the eval contracts it catches none of the real risky phrasings (measured recall 0.00, see Eval below). Recall comes from the LLM; the scanner only adds cheap high-precision hits where its narrow patterns match.
+
 ## 🧍 Confidence & Human Review
 
 Scores below **confidence 60** are provisional: the API still returns them (the pipeline needs a number) but sets `needs_human_review: true`, and the frontend should gate on it instead of auto-accepting. Response carries `needs_review_count` + `needs_review_clause_ids`.
