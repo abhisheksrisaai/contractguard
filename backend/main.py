@@ -17,6 +17,7 @@ import logging
 import os
 import time
 import tempfile
+import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -30,8 +31,13 @@ from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.tracing import trace_log
 from app.services.pdf_extractor import PDFExtractor, ScannedPDFError
-from app.services.llm_service import ContractAnalyzer
+from app.services.llm_service import (
+    ContractAnalyzer,
+    ANALYZE_PROMPT_VERSION,
+    SYSTEM_PROMPT_VERSION,
+)
 from app.services.rag_service import RAGService
 from app.services.report_generator import ReportGenerator
 from app.services.contract_classifier import contract_classifier
@@ -57,12 +63,12 @@ skill_analyzer = SkillAnalyzer(contract_analyzer, rag_service)
 ALLOWED_MODELS = {
     "auto",  # use provider chain
     "gemini",
-    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
 }
 MODEL_LABELS = {
     "auto": "Auto",
-    "gemini": "Gemini 2.0 Flash",
-    "llama-3.3-70b-versatile": "Llama 3.3 70B",
+    "gemini": "Gemini 3.6 Flash",
+    "openai/gpt-oss-120b": "GPT-OSS 120B (Groq)",
 }
 VALID_CONTRACT_TYPES = {
     "employment_contract", "supplier_contract", "works_contract",
@@ -300,9 +306,9 @@ def _validate_model(model: Optional[str]) -> str:
 
 # ── Per-clause analysis task (runs in thread) ────────────────────────
 
-def _analyze_single_clause(clause: Dict, model: str) -> Dict[str, Any]:
+def _analyze_single_clause(clause: Dict, model: str, request_id: Optional[str] = None) -> Dict[str, Any]:
     """Analyze a single clause + RAG compare. Runs in a thread."""
-    analysis = contract_analyzer.analyze_clause(clause)
+    analysis = contract_analyzer.analyze_clause(clause, model=model, request_id=request_id)
     try:
         comparison = rag_service.compare_clause(clause)
         analysis["fair_alternatives"] = comparison.get("fair_alternatives", [])
@@ -311,6 +317,10 @@ def _analyze_single_clause(clause: Dict, model: str) -> Dict[str, Any]:
         logger.warning("RAG comparison skipped for clause %s: %s", clause.get("id"), exc)
         analysis["fair_alternatives"] = []
         analysis["comparison_notes"] = "RAG comparison unavailable."
+    trace_log(
+        "clause_rag", request_id=request_id, clause_id=clause.get("id", ""),
+        fair_alternatives=len(analysis["fair_alternatives"]),
+    )
 
     analysis["id"] = clause.get("id", "")
     analysis["title"] = clause.get("title", "")
@@ -379,6 +389,7 @@ async def analyze_contract(
     """
     _check_rate_limit(request, analyze_limiter, "/api/analyze")
     t_start = time.time()
+    request_id = uuid.uuid4().hex[:12]
 
     # ── Validate model ─────────────────────────────────────────
     selected_model = _validate_model(model)
@@ -473,7 +484,7 @@ async def analyze_contract(
             async with semaphore:
                 loop = asyncio.get_running_loop()
                 return await loop.run_in_executor(
-                    None, _analyze_single_clause, clause, selected_model,
+                    None, _analyze_single_clause, clause, selected_model, request_id,
                 )
 
         tasks = [analyze_with_limit(clause) for clause in clauses]
@@ -497,6 +508,8 @@ async def analyze_contract(
                     "missing_protections": [],
                     "fair_alternatives": [],
                     "comparison_notes": "RAG comparison unavailable.",
+                    "confidence": 40,
+                    "needs_human_review": True,
                 })
             else:
                 analyzed_clauses.append(result)
@@ -545,13 +558,33 @@ async def analyze_contract(
             ai_provider = top
         contract_analyzer._call_log = []  # reset for next request
 
+        needs_review_ids = [
+            c.get("id", "") for c in analyzed_clauses if c.get("needs_human_review")
+        ]
+        trace_log(
+            "analyze", request_id=request_id, filename=file.filename,
+            contract_type=contract_type, type_confidence=round(type_confidence, 4),
+            total_clauses=len(analyzed_clauses),
+            needs_review_count=len(needs_review_ids),
+            needs_review_clause_ids=needs_review_ids,
+            overall_score=overall.get("overall_score", 0),
+            confidence=confidence, ai_provider=ai_provider,
+            requested_model=selected_model,
+            system_prompt_version=SYSTEM_PROMPT_VERSION,
+            analyze_prompt_version=ANALYZE_PROMPT_VERSION,
+            elapsed_seconds=elapsed,
+        )
+
         return JSONResponse(
             content={
                 "success": True,
+                "request_id": request_id,
                 "filename": file.filename,
                 "overall_score": overall.get("overall_score", 0),
                 "risk_breakdown": overall.get("risk_breakdown", {"High": 0, "Medium": 0, "Low": 0}),
                 "high_risk_clauses": overall.get("high_risk_clauses", []),
+                "needs_review_count": len(needs_review_ids),
+                "needs_review_clause_ids": needs_review_ids,
                 "assessment": overall.get("summary", ""),
                 "total_clauses": len(analyzed_clauses),
                 "clauses": analyzed_clauses,
@@ -596,14 +629,17 @@ async def ask_question(request: Request, payload: AskRequest):
         raise HTTPException(status_code=400, detail="Question is required.")
 
     try:
+        request_id = uuid.uuid4().hex[:12]
         answer = contract_analyzer.answer_question(
             contract_text=payload.contract_text,
             question=payload.question,
+            request_id=request_id,
         )
         remaining = ask_limiter.remaining(_client_ip(request))
         return JSONResponse(
             content={
                 "success": True,
+                "request_id": request_id,
                 "question": payload.question,
                 "answer": answer,
                 "model": selected_model,

@@ -11,8 +11,20 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from app.core.config import settings
+from app.core.tracing import trace_log
 
 logger = logging.getLogger(__name__)
+
+# ── Prompt versions (bump when the template text changes) ────────────
+SYSTEM_PROMPT_VERSION = "cg-sys-v2"
+ANALYZE_PROMPT_VERSION = "cg-analyze-v3"
+QNA_PROMPT_VERSION = "cg-qna-v2"
+
+# ── Confidence & human review ────────────────────────────────────────
+# Clauses scoring below this are returned with needs_human_review=True:
+# the score stays provisional so the pipeline keeps working, but callers
+# must gate on the flag instead of auto-accepting it.
+CONFIDENCE_REVIEW_THRESHOLD = 60
 
 # ── Prompt Templates ─────────────────────────────────────────────────
 
@@ -186,7 +198,7 @@ class ContractAnalyzer:
             groq_model = model or settings.GROQ_MODEL
             return self._call_groq(system, user_message, temperature, max_tokens, groq_model)
         elif provider == "groq_8b":
-            return self._call_groq(system, user_message, temperature, max_tokens, "llama-3.1-8b-instant")
+            return self._call_groq(system, user_message, temperature, max_tokens, "openai/gpt-oss-20b")
         elif provider == "ollama":
             return self._call_ollama(system, user_message, temperature, max_tokens)
         else:
@@ -316,9 +328,57 @@ class ContractAnalyzer:
         "explanation": QUOTA_EXHAUSTED_MSG,
         "suggested_alternative": "",
         "missing_protections": ["Unable to determine — please review manually."],
+        "confidence": 40,
+        "needs_human_review": True,
     }
 
-    def analyze_clause(self, clause: Dict[str, str], model: Optional[str] = None) -> Dict[str, Any]:
+    @staticmethod
+    def _parse_quality(raw: str) -> str:
+        """How cleanly the model output parsed: direct / recovered / heuristic.
+
+        Note: reasoning models can exhaust max_tokens mid-object, leaving
+        truncated JSON with no closing brace. The per-field regexes in
+        _extract_fields_heuristic still recover those, so field presence
+        (not brace matching) decides recovered vs heuristic.
+        """
+        text = raw.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        try:
+            json.loads(text)
+            return "direct"
+        except json.JSONDecodeError:
+            pass
+        try:
+            m = re.search(r"\{.*\}", text, re.DOTALL)
+            if m:
+                json.loads(m.group(0))
+                return "recovered"
+        except json.JSONDecodeError:
+            pass
+        has_level = bool(re.search(r'"risk_level"\s*:\s*"(\w+)"', text, re.IGNORECASE))
+        has_score = bool(re.search(r'"risk_score"\s*:\s*(\d+)', text))
+        if has_level and has_score:
+            return "recovered"  # truncated but decision fields intact
+        return "heuristic"
+
+    @staticmethod
+    def _score_confidence(parse_quality: str, content_len: int, llm_ok: bool) -> int:
+        """Heuristic confidence for a clause score (0-100)."""
+        if not llm_ok:
+            return 40  # provider fallback: provisional score, must be reviewed
+        base = {"direct": 85, "recovered": 70, "heuristic": 55}[parse_quality]
+        if content_len < 120:
+            base -= 10  # thin signal
+        return max(40, min(98, base))
+
+    def analyze_clause(
+        self,
+        clause: Dict[str, str],
+        model: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         title = clause.get("title", "Untitled Clause")
         content = (clause.get("content", "") or "")[:1200]  # trim to 1200 chars
         clause_type = clause.get("type", "general")
@@ -336,18 +396,37 @@ class ContractAnalyzer:
                 system=SYSTEM_PROMPT, user_message=prompt,
                 temperature=0.2, max_tokens=700, model=model,
             )
+            quality = self._parse_quality(raw_output)
             result = self._parse_json(raw_output)
             result["risk_level"] = self._normalize_risk_level(result.get("risk_level", "Medium"))
             result["risk_score"] = self._normalize_risk_score(result.get("risk_score", 50))
             for lk in ("risk_factors", "missing_protections"):
                 if not isinstance(result.get(lk), list):
                     result[lk] = [str(result.get(lk, ""))] if result.get(lk) else []
+            confidence = self._score_confidence(quality, len(content), llm_ok=True)
+            result["confidence"] = confidence
+            result["needs_human_review"] = confidence < CONFIDENCE_REVIEW_THRESHOLD
             logger.info("Clause %s → risk=%s, score=%d", clause_id, result.get("risk_level"), result.get("risk_score"))
+            trace_log(
+                "clause_scored", request_id=request_id, clause_id=clause_id,
+                clause_type=clause_type, risk_level=result.get("risk_level"),
+                risk_score=result.get("risk_score"), confidence=confidence,
+                needs_human_review=result["needs_human_review"],
+                parse_quality=quality, prompt_version=ANALYZE_PROMPT_VERSION,
+                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+            )
             return result
         except Exception:
             logger.warning("Clause %s: all providers exhausted, returning heuristic fallback.", clause_id)
             fallback = dict(self.ANALYZE_CLAUSE_FAILED)
             fallback["suggested_alternative"] = content
+            trace_log(
+                "clause_scored", request_id=request_id, clause_id=clause_id,
+                clause_type=clause_type, risk_level="Medium", risk_score=50,
+                confidence=40, needs_human_review=True, parse_quality="fallback",
+                prompt_version=ANALYZE_PROMPT_VERSION,
+                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+            )
             return fallback
 
     # ── Contract-Level Aggregation ──────────────────────────────
@@ -451,7 +530,12 @@ class ContractAnalyzer:
 
     # ── Question Answering ──────────────────────────────────────
 
-    def answer_question(self, contract_text: str, question: str) -> str:
+    def answer_question(
+        self,
+        contract_text: str,
+        question: str,
+        request_id: Optional[str] = None,
+    ) -> str:
         if not contract_text.strip():
             return "No contract text available to answer questions."
         if not question.strip():
@@ -464,8 +548,24 @@ class ContractAnalyzer:
                 system="You are a helpful legal contract assistant. Answer concisely.",
                 user_message=prompt, temperature=0.3, max_tokens=300,
             )
-            return answer.strip()
+            answer = answer.strip()
+            trace_log(
+                "qa", request_id=request_id, question=question[:300],
+                contract_chars=len(contract_text),
+                retrieved_passages=len(relevant.split("\n\n")),
+                retrieved_chars=len(relevant), answer_chars=len(answer),
+                prompt_version=QNA_PROMPT_VERSION,
+                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+            )
+            return answer
         except Exception:
+            trace_log(
+                "qa", request_id=request_id, question=question[:300],
+                contract_chars=len(contract_text), retrieved_chars=len(relevant),
+                answer_chars=0, llm_available=False,
+                prompt_version=QNA_PROMPT_VERSION,
+                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+            )
             return QNA_EXHAUSTED_MSG
 
     # ── JSON Parsing ────────────────────────────────────────────
@@ -543,6 +643,7 @@ class ContractAnalyzer:
         return {
             "risk_level": "Low", "risk_score": 0, "risk_factors": [],
             "explanation": message, "suggested_alternative": "", "missing_protections": [],
+            "confidence": 95, "needs_human_review": False,
         }
 
 
