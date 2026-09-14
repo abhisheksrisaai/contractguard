@@ -20,13 +20,15 @@ class Settings(BaseSettings):
 
     # ── LLM Providers ───────────────────────────────────────
     LLM_PROVIDER: str = "groq"
-    PROVIDER_ORDER: str = "gemini,groq,groq_8b"  # comma-separated list
-    # Groq
+    # groq first: verified live 2026-09-13 (gemini SDK truncates new models;
+    # gemini stays in the chain as fallback, not primary).
+    PROVIDER_ORDER: str = "groq,groq_8b,gemini"  # comma-separated list
+    # Groq (verified live 2026-09-13; llama-3.3-70b-versatile is decommissioned)
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    # Gemini
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    # Gemini (gemini-2.0-flash decommissioned; 3.6-flash per API guidance)
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     # Ollama (local dev only)
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "llama3.1:8b"

@@ -160,7 +160,10 @@ class TestLLMService:
                 system="You are a helpful assistant. Respond with a single word: 'pong'.",
                 user_message="ping",
                 temperature=0.0,
-                max_tokens=10,
+                # Reasoning models (gpt-oss) spend the budget on internal
+                # reasoning first (finish=length, empty content on small
+                # budgets), so the ping needs room for reasoning + answer.
+                max_tokens=300,
             )
             assert isinstance(response, str)
             assert len(response) > 0

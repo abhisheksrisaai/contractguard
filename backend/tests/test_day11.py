@@ -140,29 +140,32 @@ def test_daily_quota_marks_exhausted():
     analyzer._daily_exhausted = set()
     call_order = []
 
+    # Provider order is groq,groq_8b,gemini (groq-first since 2026-09-13):
+    # fail the Groq tiers with quota errors so the chain reaches gemini.
     def mock_single(provider, *args, **kwargs):
         call_order.append(provider)
-        if provider == "gemini":
+        if provider in ("groq", "groq_8b"):
             raise RuntimeError("429 tokens per day (TPD) exceeded — upgrade")
-        if provider == "groq":
-            return "groq_ok"
+        if provider == "gemini":
+            return "gemini_ok"
 
     with patch.object(analyzer, "_call_single_provider", mock_single):
-        # First call: gemini fails, groq succeeds
+        # First call: groq tiers fail with quota errors, gemini succeeds
         result1 = analyzer._call_llm("sys", "usr", 0.2, 100)
-        assert result1 == "groq_ok"
-        assert "gemini" in call_order
+        assert result1 == "gemini_ok"
         assert "groq" in call_order
-        # gemini should now be in _daily_exhausted
-        assert "gemini" in analyzer._daily_exhausted
+        assert "gemini" in call_order
+        # groq tiers should now be in _daily_exhausted
+        assert "groq" in analyzer._daily_exhausted
+        assert "groq_8b" in analyzer._daily_exhausted
 
         call_order.clear()
-        # Second call: gemini should be skipped, groq used directly
+        # Second call: groq tiers should be skipped, gemini used directly
         result2 = analyzer._call_llm("sys", "usr", 0.2, 100)
-        assert result2 == "groq_ok"
-        # gemini should NOT be in this call_order
-        assert "gemini" not in call_order
-        assert call_order[0] == "groq"
+        assert result2 == "gemini_ok"
+        # groq tiers should NOT be in this call_order
+        assert "groq" not in call_order
+        assert call_order[0] == "gemini"
 
 
 # ── 7. Model override: "gemini" accepted ─────────────────────────
