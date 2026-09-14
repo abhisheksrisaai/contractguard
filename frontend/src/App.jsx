@@ -250,15 +250,15 @@ export default function App() {
                 <div className="grid grid-cols-3 gap-2 mt-3">
                   <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-3 text-center">
                     <p className="text-lg font-bold text-red-400">{breakdown.High}</p>
-                    <p className="text-[10px] text-red-400/60 uppercase">High</p>
+                    <p className="text-[10px] text-red-400/60 uppercase">High Clauses</p>
                   </div>
                   <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 text-center">
                     <p className="text-lg font-bold text-amber-400">{breakdown.Medium}</p>
-                    <p className="text-[10px] text-amber-400/60 uppercase">Medium</p>
+                    <p className="text-[10px] text-amber-400/60 uppercase">Medium Clauses</p>
                   </div>
                   <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 text-center">
                     <p className="text-lg font-bold text-emerald-400">{breakdown.Low}</p>
-                    <p className="text-[10px] text-emerald-400/60 uppercase">Low</p>
+                    <p className="text-[10px] text-emerald-400/60 uppercase">Low Clauses</p>
                   </div>
                 </div>
               </div>

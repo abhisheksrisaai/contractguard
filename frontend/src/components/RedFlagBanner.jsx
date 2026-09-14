@@ -36,7 +36,8 @@ export default function RedFlagBanner({ redFlags }) {
         <h3 className={`font-bold ${hasCritical ? 'text-red-400' : 'text-amber-400'}`}>
           {hasCritical && `${critical.length} Critical Red Flag${critical.length !== 1 ? 's' : ''}`}
           {hasCritical && hasHigh && ' • '}
-          {hasHigh && `${high.length} High`}
+          {hasHigh && `${high.length} High-Priority Red Flag${high.length !== 1 ? 's' : ''}`}
+          {' '}(auto-detected)
         </h3>
       </div>
       <div className="space-y-2">

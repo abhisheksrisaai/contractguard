@@ -38,3 +38,6 @@ backend/qdrant_data/
 backend/uploads/
 backend/reports/
 backend/.pytest_cache/
+
+# ── local agent scratch ──
+.commandcode/
