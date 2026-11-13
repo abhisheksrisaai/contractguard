@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 from pydantic_settings import BaseSettings
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=ENV_PATH, override=False)
+
+QWEN_MODEL = "qwen/qwen3.8-27b"
 
 
 class Settings(BaseSettings):
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
     PROVIDER_ORDER: str = "groq"  # comma-separated list
     # Groq (verified live 2026-11-13; llama-3.3-70b-versatile is decommissioned)
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "qwen/qwen3.8-27b"
+    GROQ_MODEL: str = QWEN_MODEL
     GROQ_FALLBACK_MODEL: str = "openai/gpt-oss-120b"
     GROQ_LIGHT_MODEL: str = "openai/gpt-oss-20b"
     # Deprecated: kept so existing .env files with these keys still load
@@ -70,6 +72,16 @@ class Settings(BaseSettings):
 
     # ── CORS ───────────────────────────────────────────────
     FRONTEND_URL: str = "http://localhost:5173"
+
+    @field_validator("GROQ_MODEL", mode="before")
+    @classmethod
+    def _only_qwen(cls, value: Optional[str]) -> str:
+        """Reject stale deployment env values that would disable Qwen.
+
+        Only Qwen is supported, so a legacy Render env var such as
+        ``llama-3.3-70b-versatile`` must not silently reach the provider.
+        """
+        return QWEN_MODEL
 
     @property
     def project_root(self) -> Path:

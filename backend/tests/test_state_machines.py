@@ -59,6 +59,13 @@ def test_trace_stage_emits_one_structured_record(caplog):
     }
 
 
+def test_groq_model_cannot_be_overridden_to_a_dead_model():
+    from app.core.config import QWEN_MODEL, Settings
+
+    configured = Settings(GROQ_MODEL="llama-3.3-70b-versatile")
+    assert configured.GROQ_MODEL == QWEN_MODEL
+
+
 def test_five_c_state_reports_complete_partial_and_unavailable():
     from app.skills.skill_analyzer import SkillAnalyzer
 

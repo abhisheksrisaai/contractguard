@@ -31,7 +31,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.config import settings
+from app.core.config import QWEN_MODEL, settings
 from app.core.status import (
     AnalysisStatus, ClauseStatus, FiveCStatus, ParseQuality, PipelineStage,
 )
@@ -67,7 +67,6 @@ skill_analyzer = SkillAnalyzer(contract_analyzer, rag_service)
 # ── Allowed models ───────────────────────────────────────────────────
 # Qwen only. "auto" is accepted as a backward-compatible alias for Qwen
 # but is not advertised in GET /api/models.
-QWEN_MODEL = "qwen/qwen3.8-27b"
 ALLOWED_MODELS = {QWEN_MODEL}
 MODEL_LABELS = {QWEN_MODEL: "Qwen 3.8 27B (Groq)"}
 MODEL_DESCRIPTIONS = {QWEN_MODEL: "Contract reasoning, scoring, and negotiation guidance"}
@@ -498,7 +497,7 @@ async def analyze_contract(
 
         # ── Step 1: Extract text ───────────────────────────────
         try:
-            full_text = pdf_extractor.extract_text(tmp_path)
+            full_text = await asyncio.to_thread(pdf_extractor.extract_text, tmp_path)
         except FileNotFoundError:
             raise HTTPException(status_code=400, detail="PDF file could not be read.")
         except ScannedPDFError as e:
@@ -516,7 +515,9 @@ async def analyze_contract(
             contract_type = ctype_override
             type_confidence = 1.0
         else:
-            contract_type, type_confidence = contract_classifier.classify(full_text)
+            contract_type, type_confidence = await asyncio.to_thread(
+                contract_classifier.classify, full_text,
+            )
 
         logger.info("Contract type: %s (confidence=%.2f)", contract_type, type_confidence)
         _trace_stage(
@@ -527,14 +528,14 @@ async def analyze_contract(
         # ── Step 3: Run red-flag scanner ────────────────────────
         red_flags: List[dict] = []
         try:
-            red_flags = scan_red_flags(full_text, contract_type)
+            red_flags = await asyncio.to_thread(scan_red_flags, full_text, contract_type)
         except Exception as exc:
             logger.warning("Red-flag scanner failed: %s", exc)
         _trace_stage(request_id, PipelineStage.RED_FLAGS, findings=len(red_flags))
 
         # ── Step 4: Segment clauses ────────────────────────────
         try:
-            clauses = pdf_extractor.segment_clauses(full_text)
+            clauses = await asyncio.to_thread(pdf_extractor.segment_clauses, full_text)
         except Exception as e:
             logger.exception("Clause segmentation failed")
             raise HTTPException(status_code=500, detail=f"Clause segmentation error: {e}")
@@ -563,7 +564,9 @@ async def analyze_contract(
         executive_summary = None
 
         try:
-            skill_result = skill_analyzer.analyze(full_text, contract_type, selected_model)
+            skill_result = await asyncio.to_thread(
+                skill_analyzer.analyze, full_text, contract_type, selected_model,
+            )
             five_c = skill_result.get("five_c")
             five_c_status = skill_result.get("five_c_status")
             skill_findings = skill_result.get("findings", [])
@@ -661,7 +664,9 @@ async def analyze_contract(
         )
 
         # ── Step 7: Overall contract assessment ─────────────────
-        overall = contract_analyzer.analyze_contract(successful_clauses)
+        overall = await asyncio.to_thread(
+            contract_analyzer.analyze_contract, successful_clauses,
+        )
         overall["total_clauses"] = len(analyzed_clauses)
         _trace_stage(
             request_id, PipelineStage.AGGREGATE,
