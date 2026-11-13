@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Briefcase, Building2, HardHat, Handshake, Sparkles,
 } from 'lucide-react';
@@ -35,19 +34,18 @@ const TYPES = [
 ];
 
 export default function ContractTypeSelector({ selected, onChange }) {
-  const [autoDetect, setAutoDetect] = useState(selected === null);
+  // Auto-detect is not separate state: the parent already represents it as
+  // `null`. Keeping a local flag could desync when the parent resets.
+  const autoDetect = selected === null;
+  const active = selected;
 
   const handleAutoDetect = () => {
-    setAutoDetect(true);
     onChange(null);
   };
 
   const handleSelect = (typeId) => {
-    setAutoDetect(false);
     onChange(typeId);
   };
-
-  const active = autoDetect ? null : selected;
 
   return (
     <div className="space-y-4">

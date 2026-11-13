@@ -121,7 +121,7 @@ class ContractTypeClassifier:
         return (best_type, confidence)
 
     def _llm_fallback(self, contract_text: str) -> Optional[str]:
-        """Cheap LLM classification using llama-3.1-8b-instant."""
+        """Cheap LLM classification using the configured Qwen model."""
         try:
             from groq import Groq
             settings.validate_groq_key()
@@ -136,13 +136,13 @@ class ContractTypeClassifier:
             user = contract_text[:2000]
 
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=settings.GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
                 temperature=0.0,
-                max_tokens=10,
+                max_tokens=40,
             )
             content = completion.choices[0].message.content
             if content:

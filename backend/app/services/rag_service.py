@@ -57,6 +57,7 @@ class RAGService:
     def __init__(self) -> None:
         self._qdrant: Optional[QdrantClient] = None
         self._encoder: Optional[SentenceTransformer] = None
+        self._encoder_load_attempted = False
         self._vectorizer: Any = None  # TfidfVectorizer (loaded lazily)
 
     # ── Qdrant Client ────────────────────────────────────────────────
@@ -147,46 +148,52 @@ class RAGService:
     @property
     def encoder(self):
         """Lazy-load the sentence-transformer embedding model.
-        Returns None if model fails to load, triggering TF-IDF fallback."""
-        if self._encoder is None:
-            if not HAS_SENTENCE_TRANSFORMERS:
-                logger.info("sentence-transformers not installed. Using TF-IDF fallback.")
-                self._encoder = None
-                return None
 
-            model_name = settings.EMBEDDING_MODEL.replace("sentence-transformers/", "")
-            logger.info("Loading embedding model: %s ...", model_name)
+        Returns None if the model is unavailable. The failure is cached:
+        retrying the load for every clause cost about five seconds each and
+        spammed Hugging Face with the same failed request.
+        """
+        if self._encoder_load_attempted:
+            return self._encoder
 
-            cache_root = os.path.expanduser("~/.cache/huggingface/hub")
-            model_blobs = os.path.join(
-                cache_root, "models--sentence-transformers--all-MiniLM-L6-v2", "blobs"
+        self._encoder_load_attempted = True
+        if not HAS_SENTENCE_TRANSFORMERS:
+            logger.info("sentence-transformers not installed. Using TF-IDF fallback.")
+            return None
+
+        model_name = settings.EMBEDDING_MODEL.replace("sentence-transformers/", "")
+        logger.info("Loading embedding model: %s ...", model_name)
+
+        cache_root = os.path.expanduser("~/.cache/huggingface/hub")
+        model_blobs = os.path.join(
+            cache_root, "models--sentence-transformers--all-MiniLM-L6-v2", "blobs"
+        )
+        has_weights = False
+        if os.path.isdir(model_blobs):
+            for f in os.listdir(model_blobs):
+                fpath = os.path.join(model_blobs, f)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 1_000_000:
+                    has_weights = True
+                    break
+
+        if not has_weights:
+            logger.warning(
+                "Model not cached. Using TF-IDF fallback. Run:"
+                " python -c 'from sentence_transformers import SentenceTransformer;"
+                " SentenceTransformer(\"%s\")'",
+                settings.EMBEDDING_MODEL,
             )
-            has_weights = False
-            if os.path.isdir(model_blobs):
-                for f in os.listdir(model_blobs):
-                    fpath = os.path.join(model_blobs, f)
-                    if os.path.isfile(fpath) and os.path.getsize(fpath) > 1_000_000:
-                        has_weights = True
-                        break
+            return None
 
-            if not has_weights:
-                logger.warning(
-                    "Model not cached. Using TF-IDF fallback. Run:"
-                    " python -c 'from sentence_transformers import SentenceTransformer;"
-                    " SentenceTransformer(\"%s\")'",
-                    settings.EMBEDDING_MODEL,
-                )
-                self._encoder = None
-            else:
-                try:
-                    self._encoder = SentenceTransformer(
-                        settings.EMBEDDING_MODEL,
-                        device="cpu",
-                    )
-                    logger.info("Model loaded. Dim: %d", self._encoder.get_sentence_embedding_dimension())
-                except Exception as exc:
-                    logger.warning("Failed to load model: %s. Using TF-IDF fallback.", exc)
-                    self._encoder = None
+        try:
+            self._encoder = SentenceTransformer(
+                settings.EMBEDDING_MODEL,
+                device="cpu",
+            )
+            logger.info("Model loaded. Dim: %d", self._encoder.get_sentence_embedding_dimension())
+        except Exception as exc:
+            logger.warning("Failed to load model: %s. Using TF-IDF fallback.", exc)
+            self._encoder = None
 
         return self._encoder
 

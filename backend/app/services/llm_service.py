@@ -1,16 +1,20 @@
 """
 ContractGuard - LLM Risk Analysis Service
-Multi-provider routing with graceful degradation.
+Multi-provider routing with retries, cooldowns, and explicit failure.
 """
 
 import json
 import logging
+import random
 import re
+import threading
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from app.core.config import settings
+from app.core.status import ClauseStatus, ParseQuality
 from app.core.tracing import trace_log
 
 logger = logging.getLogger(__name__)
@@ -21,9 +25,8 @@ ANALYZE_PROMPT_VERSION = "cg-analyze-v3"
 QNA_PROMPT_VERSION = "cg-qna-v2"
 
 # ── Confidence & human review ────────────────────────────────────────
-# Clauses scoring below this are returned with needs_human_review=True:
-# the score stays provisional so the pipeline keeps working, but callers
-# must gate on the flag instead of auto-accepting it.
+# Clauses scoring below this are returned with needs_human_review=True.
+# Failed clauses get no score and are excluded from the overall score.
 CONFIDENCE_REVIEW_THRESHOLD = 60
 
 # ── Prompt Templates ─────────────────────────────────────────────────
@@ -67,19 +70,183 @@ Answer based ONLY on these clauses. Be concise (2-4 sentences). If the contract 
 # ── All-providers-down fallback messages (sanitized — no raw errors) ─
 
 QUOTA_EXHAUSTED_MSG = (
-    "AI analysis temporarily unavailable (daily quota reached). "
-    "Showing heuristic assessment — please review manually or retry later."
+    "AI analysis is temporarily unavailable. "
+    "Please retry in a minute or review this clause manually."
 )
 QNA_EXHAUSTED_MSG = (
-    "Sorry, the AI analysis service is temporarily unavailable due to daily quota limits. "
-    "Please try again later."
+    "Sorry, the AI analysis service is temporarily unavailable. "
+    "Please try again in a minute."
 )
 
-# Patterns that indicate daily-quota exhaustion (not per-minute rate limit)
-DAILY_QUOTA_PATTERNS = [
-    "tokens per day", "tpd", "daily", "quota exceeded",
-    "billing", "upgrade to dev tier", "rate limit reached for model",
-]
+# Groq model IDs this service knows how to route. Model names are never
+# passed across providers: a non-Groq selector must not become a Groq model.
+GROQ_MODEL_IDS = {
+    "qwen/qwen3.8-27b",
+}
+SUPPORTED_PROVIDERS = {"groq", "groq_120b", "groq_8b", "ollama"}
+
+# Patterns that indicate daily-quota exhaustion (not a per-minute limit).
+# "billing" and a bare "per day" are deliberately absent: Groq includes
+# billing/upgrade links in ordinary TPM 429s, and treating those as a
+# day-long reset disables every provider until UTC midnight.
+DAILY_QUOTA_PATTERNS = (
+    "tokens per day", "requests per day", "tpd", "rpd",
+    "daily quota", "daily limit",
+)
+PER_MINUTE_PATTERNS = (
+    "tokens per minute", "requests per minute", "output tokens per minute",
+    "tpm", "otpm", "rpm",
+)
+RATE_LIMIT_PATTERNS = (
+    "rate limit", "too many requests", "tokens per minute",
+    "requests per minute", "retry after",
+)
+NON_RETRYABLE_KINDS = {"daily_quota", "invalid_model", "auth", "bad_request"}
+
+
+class ProviderError(RuntimeError):
+    """Classified provider failure used for retry, fallback, and circuit state."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str = "unknown",
+        provider: Optional[str] = None,
+        retry_after: Optional[float] = None,
+        status_code: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.provider = provider
+        self.retry_after = retry_after
+        self.status_code = status_code
+
+
+class ClauseAnalysisError(RuntimeError):
+    """Raised when a clause cannot be scored and must be marked as failed."""
+
+
+@dataclass
+class _ProviderState:
+    """Per-provider cooldown and circuit-breaker state."""
+
+    consecutive_failures: int = 0
+    open_until: float = 0.0          # monotonic clock
+    daily_reset_at: float = 0.0      # wall clock (UTC midnight)
+    half_open: bool = False
+
+
+@dataclass
+class _TokenReservation:
+    """One estimated token charge inside a provider's rolling minute."""
+
+    provider: str
+    tokens: int
+    created_at: float
+    released: bool = False
+
+
+def _next_utc_midnight_ts() -> float:
+    now = datetime.now(timezone.utc)
+    tomorrow = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    return tomorrow.timestamp()
+
+
+def _exception_status(exc: Exception) -> Optional[int]:
+    for attr in ("status_code", "http_status"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    response = getattr(exc, "response", None)
+    value = getattr(response, "status_code", None)
+    if isinstance(value, int):
+        return value
+    value = getattr(exc, "code", None)
+    if isinstance(value, int):
+        return value
+    text = str(exc)
+    match = re.search(
+        r"\b(?:error code|status(?: code)?|http)\D{0,8}(4\d\d|5\d\d)\b",
+        text, re.IGNORECASE,
+    )
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\b(429|401|403|404|400|422|500|502|503|504)\b", text)
+    return int(match.group(1)) if match else None
+
+
+def _retry_after_seconds(exc: Exception) -> Optional[float]:
+    value = getattr(exc, "retry_after", None)
+    if isinstance(value, (int, float)):
+        return float(value)
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers:
+        value = headers.get("retry-after") or headers.get("Retry-After")
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            pass
+    match = re.search(r"retry[\s-]*after\D{0,12}(\d+(?:\.\d+)?)", str(exc), re.IGNORECASE)
+    return float(match.group(1)) if match else None
+
+
+def _is_daily_quota_message(text: str) -> bool:
+    """True only for explicit day-level exhaustion, never for TPM/RPM 429s.
+
+    Groq's per-minute 429 body often contains a billing/upgrade link and
+    sometimes the words "per day" in surrounding text. A per-minute signal
+    always wins so a transient burst cannot disable a provider until midnight.
+    """
+    if any(pattern in text for pattern in PER_MINUTE_PATTERNS):
+        return False
+    return any(pattern in text for pattern in DAILY_QUOTA_PATTERNS)
+
+
+def _classify_error(exc: Exception, provider: str) -> ProviderError:
+    """Turn an SDK/network exception into a retry decision."""
+    if isinstance(exc, ProviderError):
+        if exc.provider is None:
+            exc.provider = provider
+        return exc
+
+    text = str(exc).lower()
+    status = _exception_status(exc)
+    retry_after = _retry_after_seconds(exc)
+
+    if status in (401, 403) or "invalid api key" in text or "authentication" in text:
+        kind = "auth"
+    elif (
+        status == 404
+        or "model_not_found" in text
+        or "model not found" in text
+        or "does not exist" in text
+        or "decommissioned" in text
+    ):
+        kind = "invalid_model"
+    elif status == 429 or any(pattern in text for pattern in RATE_LIMIT_PATTERNS):
+        kind = "daily_quota" if _is_daily_quota_message(text) else "rate_limit"
+    elif _is_daily_quota_message(text):
+        kind = "daily_quota"
+    elif status in (400, 422):
+        kind = "bad_request"
+    elif status is not None and 500 <= status < 600:
+        kind = "server"
+    elif "timeout" in text or "timed out" in text or "deadline" in text:
+        kind = "timeout"
+    elif "quota" in text:
+        # Ambiguous quota wording: retry briefly instead of disabling for a day.
+        kind = "rate_limit"
+    else:
+        kind = "unknown"
+
+    return ProviderError(
+        str(exc), kind=kind, provider=provider,
+        retry_after=retry_after, status_code=status,
+    )
 
 
 class ContractAnalyzer:
@@ -87,40 +254,285 @@ class ContractAnalyzer:
 
     def __init__(self) -> None:
         self._groq_client: Any = None
-        self._gemini_client: Any = None
-        self._daily_exhausted: Set[str] = set()
+        self._provider_states: Dict[str, _ProviderState] = {}
+        self._state_lock = threading.Lock()
+        self._token_reservations: List[_TokenReservation] = []
+        self._token_lock = threading.Lock()
         self._call_log: List[str] = []  # track which providers served each call
+
+    def reset_state(self) -> None:
+        """Clear provider cooldowns and request-scoped call logging."""
+        with self._state_lock:
+            self._provider_states.clear()
+            self._call_log.clear()
+        with self._token_lock:
+            self._token_reservations.clear()
+
+    @property
+    def _daily_exhausted(self) -> Set[str]:
+        """Backward-compatible view of providers cooling down on daily quota."""
+        now = time.time()
+        with self._state_lock:
+            return {
+                provider for provider, state in self._provider_states.items()
+                if state.daily_reset_at > now
+            }
+
+    @_daily_exhausted.setter
+    def _daily_exhausted(self, providers: Set[str]) -> None:
+        with self._state_lock:
+            for state in self._provider_states.values():
+                state.daily_reset_at = 0.0
+            for provider in providers:
+                state = self._provider_states.setdefault(provider, _ProviderState())
+                state.daily_reset_at = _next_utc_midnight_ts()
 
     # ── Provider Initialization ──────────────────────────────────
 
     def _init_groq(self):
         if self._groq_client is None and settings.has_groq:
             from groq import Groq
-            self._groq_client = Groq(api_key=settings.GROQ_API_KEY)
+            try:
+                # Disable the SDK's own 429 retries. It sleeps for the full
+                # Retry-After (sometimes 40s+) inside one clause while holding
+                # a provider lane. Our scheduler needs to see the failure
+                # immediately so it can fall through or pace the next call.
+                self._groq_client = Groq(
+                    api_key=settings.GROQ_API_KEY,
+                    timeout=settings.LLM_REQUEST_TIMEOUT,
+                    max_retries=0,
+                )
+            except TypeError:
+                # Older groq SDKs do not accept the timeout/max_retries kwargs.
+                try:
+                    self._groq_client = Groq(
+                        api_key=settings.GROQ_API_KEY,
+                        timeout=settings.LLM_REQUEST_TIMEOUT,
+                    )
+                except TypeError:
+                    self._groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
-    def _init_gemini(self):
-        if self._gemini_client is None and settings.has_gemini:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self._gemini_client = genai
+    # ── Provider state / circuit breaker ─────────────────────────
 
-    # ── Daily quota check ───────────────────────────────────────
+    def _is_provider_available(self, provider: str) -> bool:
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        with self._state_lock:
+            state = self._provider_states.get(provider)
+            if state is None:
+                return True
+            if state.daily_reset_at > now_wall:
+                return False
+            if state.open_until > now_mono:
+                return False
+            # After a cooldown, let exactly one probe through.
+            if (
+                state.consecutive_failures >= settings.LLM_CIRCUIT_FAILURE_THRESHOLD
+                and state.open_until
+            ):
+                if state.half_open:
+                    return False
+                state.half_open = True
+            return True
+
+    def _record_success(self, provider: str) -> None:
+        with self._state_lock:
+            state = self._provider_states.setdefault(provider, _ProviderState())
+            state.consecutive_failures = 0
+            state.open_until = 0.0
+            state.daily_reset_at = 0.0
+            state.half_open = False
+
+    def _record_failure(self, provider: str, error: ProviderError) -> None:
+        now_mono = time.monotonic()
+        with self._state_lock:
+            state = self._provider_states.setdefault(provider, _ProviderState())
+            state.half_open = False
+            if error.kind == "daily_quota":
+                state.daily_reset_at = _next_utc_midnight_ts()
+                state.consecutive_failures = 0
+                return
+            if error.kind in ("invalid_model", "auth", "bad_request"):
+                # Retrying cannot fix configuration/model errors.
+                state.open_until = max(state.open_until, now_mono + 300.0)
+                return
+            state.consecutive_failures += 1
+            if error.kind == "rate_limit":
+                cooldown = error.retry_after or settings.LLM_RATE_LIMIT_COOLDOWN
+                # Respect the provider's retry-after, but do not park a lane
+                # for longer than the configured transient cooldown.
+                ceiling = max(5.0, float(settings.LLM_RATE_LIMIT_COOLDOWN))
+                cooldown = max(2.0, min(float(cooldown), ceiling))
+                state.open_until = max(state.open_until, now_mono + cooldown)
+            elif state.consecutive_failures >= settings.LLM_CIRCUIT_FAILURE_THRESHOLD:
+                state.open_until = max(
+                    state.open_until, now_mono + settings.LLM_CIRCUIT_COOLDOWN,
+                )
+
+    def _clear_daily_exhausted_if_needed(self) -> None:
+        """Expire daily-quota cooldowns after UTC midnight."""
+        now = time.time()
+        with self._state_lock:
+            for state in self._provider_states.values():
+                if state.daily_reset_at and state.daily_reset_at <= now:
+                    state.daily_reset_at = 0.0
+
+    # ── Per-provider token pacing ────────────────────────────────
+    # Groq's free plan caps each model at 8K tokens/minute. A burst of 31
+    # clause calls otherwise stampedes the limit, so reserve estimated tokens
+    # locally and let the scheduler wait for the rolling minute to recover.
+
+    @staticmethod
+    def _estimate_tokens(system: str, user_message: str, max_tokens: int) -> int:
+        """Conservative estimate of prompt + requested output tokens.
+
+        Groq's per-minute token gate counts the requested ``max_tokens`` as
+        well as the prompt, so reserving a capped completion estimate lets
+        bursts slip past the local pacing and turn into hard 429s.
+        """
+        prompt_tokens = (len(system) + len(user_message)) // 4
+        completion_tokens = max(1, int(max_tokens))
+        return max(80, prompt_tokens + completion_tokens + 40)
+
+    def _prune_token_window(self, now: float) -> None:
+        cutoff = now - 60.0
+        self._token_reservations = [
+            reservation for reservation in self._token_reservations
+            if not reservation.released and reservation.created_at > cutoff
+        ]
+
+    def _reserve_tokens(
+        self, provider: str, tokens: int,
+    ) -> tuple:
+        """Reserve tokens in the provider's rolling minute.
+
+        Returns ``(wait_seconds, reservation)``. A positive wait means the
+        caller should try another lane or sleep before retrying.
+        """
+        limit = max(0, int(settings.LLM_TPM_LIMIT))
+        if limit <= 0:
+            return 0.0, _TokenReservation(provider, 0, time.monotonic())
+
+        now = time.monotonic()
+        with self._token_lock:
+            self._prune_token_window(now)
+            used = sum(
+                r.tokens for r in self._token_reservations
+                if r.provider == provider and not r.released
+            )
+            if used + tokens <= limit:
+                reservation = _TokenReservation(provider, tokens, now)
+                self._token_reservations.append(reservation)
+                return 0.0, reservation
+
+            # Find the earliest moment enough old reservations expire.
+            provider_rows = sorted(
+                (r for r in self._token_reservations
+                 if r.provider == provider and not r.released),
+                key=lambda r: r.created_at,
+            )
+            running = used
+            for row in provider_rows:
+                running -= row.tokens
+                if running + tokens <= limit:
+                    return max(0.05, 60.0 - (now - row.created_at)), None
+            return 1.0, None
+
+    def _release_reservation(self, reservation: Optional[_TokenReservation]) -> None:
+        if reservation is None or reservation.tokens == 0:
+            return
+        with self._token_lock:
+            reservation.released = True
+
+    def _provider_wait_seconds(self, provider: str) -> float:
+        """How long until a cooling-down provider can accept a call."""
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        with self._state_lock:
+            state = self._provider_states.get(provider)
+            if state is None:
+                return 0.0
+            if state.daily_reset_at > now_wall:
+                return state.daily_reset_at - now_wall
+            if state.open_until > now_mono:
+                return state.open_until - now_mono
+        return 0.0
+
+    # Backward-compatible alias used by older callers/tests.
+    def _mark_daily_exhausted(self, provider: str) -> None:
+        self._record_failure(
+            provider,
+            ProviderError("daily quota", kind="daily_quota", provider=provider),
+        )
 
     @classmethod
     def _is_daily_quota_error(cls, error: Exception) -> bool:
-        """Check if an exception indicates a daily quota exhaustion (not RPM)."""
-        msg = str(error).lower()
-        return any(p in msg for p in DAILY_QUOTA_PATTERNS)
+        """Check if an exception indicates daily-quota exhaustion."""
+        return _is_daily_quota_message(str(error).lower())
 
-    def _mark_daily_exhausted(self, provider: str) -> None:
-        self._daily_exhausted.add(provider)
+    # ── Retry helpers ────────────────────────────────────────────
 
-    def _clear_daily_exhausted_if_needed(self) -> None:
-        """Clear daily exhaustion flags after UTC midnight."""
-        # Simplified: clear on any call after a reasonable interval
-        # In production, a proper scheduler would do this, but simple
-        # time-since-mark approach is sufficient at our request volume.
-        pass  # flags auto-reset on process restart (ephemeral)
+    @staticmethod
+    def _attempt_timeout(deadline: Optional[float]) -> float:
+        """Cap one network attempt so it cannot overrun the provider budget."""
+        timeout = settings.LLM_REQUEST_TIMEOUT
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError("LLM deadline exceeded", kind="timeout")
+            timeout = min(timeout, remaining)
+        return max(1.0, timeout)
+
+    @staticmethod
+    def _retry_delay(attempt: int, error: ProviderError) -> float:
+        if error.retry_after is not None:
+            return max(0.0, min(float(error.retry_after), 10.0))
+        return min(2.0 ** attempt + random.uniform(0.0, 0.25), 8.0)
+
+    @staticmethod
+    def _sleep_with_deadline(seconds: float, deadline: Optional[float]) -> None:
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError("LLM deadline exceeded", kind="timeout")
+            seconds = min(seconds, remaining)
+        if seconds > 0:
+            time.sleep(seconds)
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ProviderError("LLM deadline exceeded", kind="timeout")
+
+    @staticmethod
+    def _provider_model(provider: str) -> Optional[str]:
+        """Return the Groq model bound to a provider lane."""
+        if provider == "groq":
+            return settings.GROQ_MODEL
+        if provider == "groq_120b":
+            return settings.GROQ_FALLBACK_MODEL
+        if provider == "groq_8b":
+            return settings.GROQ_LIGHT_MODEL
+        return None
+
+    @classmethod
+    def _provider_for_model(cls, model: str) -> Optional[str]:
+        for provider in ("groq", "groq_120b", "groq_8b"):
+            if cls._provider_model(provider) == model:
+                return provider
+        return None
+
+    def _ordered_providers(self, model: Optional[str]) -> List[str]:
+        providers = [
+            p.strip() for p in settings.PROVIDER_ORDER.split(",")
+            if p.strip() in SUPPORTED_PROVIDERS
+        ]
+        if not providers:
+            providers = ["groq"]
+        if model in GROQ_MODEL_IDS:
+            target = self._provider_for_model(model)
+            if target:
+                if target in providers:
+                    providers.remove(target)
+                providers.insert(0, target)
+        return providers
 
     # ── Multi-provider call ──────────────────────────────────────
 
@@ -131,56 +543,153 @@ class ContractAnalyzer:
         temperature: float = 0.2,
         max_tokens: int = 700,
         model: Optional[str] = None,
+        validator: Optional[Callable[[str], bool]] = None,
     ) -> str:
         """
         Route through providers in settings.PROVIDER_ORDER.
-        Falls through on daily-quota errors; retries transient errors.
 
-        Returns:
-            Raw response text from the model.
+        Each provider lane is paced against its own rolling token window, so
+        concurrent clauses queue instead of turning into a wall of 429s.
+        Transient failures fall through to the next lane, then wait for the
+        earliest lane to recover.
 
         Raises:
-            RuntimeError: If ALL providers are exhausted/unavailable.
+            ProviderError: If no provider can serve the request.
         """
-        providers_list = [p.strip() for p in settings.PROVIDER_ORDER.split(",") if p.strip()]
+        deadline = time.monotonic() + settings.LLM_TOTAL_TIMEOUT
+        self._clear_daily_exhausted_if_needed()
+        providers_list = self._ordered_providers(model)
+        estimated_tokens = self._estimate_tokens(system, user_message, max_tokens)
 
-        # ── Model override: reorder provider chain ─────────────
-        if model and model != "auto":
-            if model == "gemini":
-                # Move gemini to front
-                if "gemini" in providers_list:
-                    providers_list.remove("gemini")
-                providers_list.insert(0, "gemini")
-            elif model.startswith("llama"):
-                # Use groq with this specific model (but still fall through
-                # to other providers if groq is exhausted)
-                pass  # _call_single_provider handles the model arg for groq
+        last_error: Optional[ProviderError] = None
+        # A full 60-second token window can need several 10-second checks
+        # before a lane has room. Four rounds failed a valid 9-clause run.
+        max_rounds = max(8, int(settings.LLM_MAX_RETRIES) + 7)
 
-        for provider_name in providers_list:
-            if provider_name in self._daily_exhausted:
-                logger.debug("Provider '%s' marked daily-exhausted, skipping.", provider_name)
-                continue
+        for round_number in range(max_rounds):
+            if time.monotonic() >= deadline:
+                break
 
-            try:
-                result = self._call_single_provider(
-                    provider_name, system, user_message, temperature, max_tokens, model,
-                )
-                logger.info("Provider '%s' succeeded.", provider_name)
-                self._call_log.append(provider_name)
-                return result
-            except RuntimeError as exc:
-                # Daily quota → mark exhausted, fall through
-                if self._is_daily_quota_error(exc):
-                    logger.warning(
-                        "Provider '%s' daily quota exhausted, marking and skipping.", provider_name,
-                    )
-                    self._mark_daily_exhausted(provider_name)
+            retryable_seen = False
+            wait_hint = 0.0
+
+            for index, provider_name in enumerate(providers_list):
+                if time.monotonic() >= deadline:
+                    break
+
+                if not self._is_provider_available(provider_name):
+                    wait_hint = max(wait_hint, self._provider_wait_seconds(provider_name))
+                    logger.debug("Provider '%s' cooling down, skipping.", provider_name)
                     continue
-                # Transient failure (all retries used) → fall through
-                logger.warning("Provider '%s' failed (transient): %s", provider_name, exc)
-                continue
 
-        raise RuntimeError("All LLM providers are temporarily unavailable (daily quotas exhausted or unreachable).")
+                token_wait, reservation = self._reserve_tokens(
+                    provider_name, estimated_tokens,
+                )
+                if token_wait > 0:
+                    wait_hint = max(wait_hint, token_wait)
+                    retryable_seen = True
+                    logger.debug(
+                        "Provider '%s' token budget full; waiting %.1fs.",
+                        provider_name, token_wait,
+                    )
+                    continue
+
+                now = time.monotonic()
+                remaining = deadline - now
+                if remaining <= 0:
+                    self._release_reservation(reservation)
+                    break
+
+                # Reserve time for fallbacks instead of letting one slow
+                # provider consume the whole request budget.
+                remaining_providers = len(providers_list) - index
+                if remaining_providers > 1:
+                    provider_budget = max(
+                        settings.LLM_REQUEST_TIMEOUT, remaining * 0.6,
+                    )
+                else:
+                    provider_budget = remaining
+                provider_deadline = min(deadline, now + provider_budget)
+
+                try:
+                    result = self._call_single_provider(
+                        provider_name, system, user_message,
+                        temperature, max_tokens, model,
+                        deadline=provider_deadline,
+                    )
+                    if validator is not None:
+                        try:
+                            usable = validator(result)
+                        except Exception:
+                            usable = False
+                        if not usable:
+                            error = ProviderError(
+                                "Provider returned an unusable response.",
+                                kind="bad_response", provider=provider_name,
+                            )
+                            self._record_failure(provider_name, error)
+                            # Keep the reservation: the HTTP call succeeded and
+                            # Groq counted its tokens, even though the JSON was
+                            # unusable. Releasing it here causes the next call
+                            # to overrun the lane's real per-minute budget.
+                            last_error = error
+                            retryable_seen = True
+                            logger.warning(
+                                "Provider '%s' returned an unusable response; "
+                                "trying next provider.", provider_name,
+                            )
+                            continue
+
+                    logger.info("Provider '%s' succeeded.", provider_name)
+                    self._record_success(provider_name)
+                    self._call_log.append(provider_name)
+                    return result
+                except Exception as exc:
+                    error = _classify_error(exc, provider_name)
+                    self._record_failure(provider_name, error)
+                    self._release_reservation(reservation)
+                    last_error = error
+                    if error.kind not in NON_RETRYABLE_KINDS:
+                        retryable_seen = True
+                    wait_hint = max(wait_hint, self._provider_wait_seconds(provider_name))
+                    logger.warning(
+                        "Provider '%s' failed (%s): %s",
+                        provider_name, error.kind, str(error)[:200],
+                    )
+
+            if (
+                last_error is not None
+                and last_error.kind == "daily_quota"
+                and not retryable_seen
+                and wait_hint <= 0
+            ):
+                break
+            if not retryable_seen and wait_hint <= 0:
+                break
+            if time.monotonic() >= deadline:
+                break
+
+            # Wait for the earliest cooling lane or token reset, capped so a
+            # queued clause re-checks its options regularly.
+            sleep_for = min(max(wait_hint, 0.5), 10.0)
+            logger.debug(
+                "All LLM lanes busy (round %d/%d); waiting %.1fs.",
+                round_number + 1, max_rounds, sleep_for,
+            )
+            try:
+                self._sleep_with_deadline(sleep_for, deadline)
+            except ProviderError:
+                break
+
+        if last_error is not None and last_error.kind == "daily_quota":
+            raise ProviderError(
+                "All LLM providers are temporarily unavailable (daily quota reached).",
+                kind="daily_quota",
+            )
+        raise ProviderError(
+            "All LLM providers are temporarily unavailable.",
+            kind="all_down",
+        )
 
     def _call_single_provider(
         self,
@@ -190,19 +699,30 @@ class ContractAnalyzer:
         temperature: float,
         max_tokens: int,
         model: Optional[str],
+        deadline: Optional[float] = None,
     ) -> str:
         """Dispatch to the correct provider implementation."""
-        if provider == "gemini":
-            return self._call_gemini(system, user_message, temperature, max_tokens)
-        elif provider == "groq":
-            groq_model = model or settings.GROQ_MODEL
-            return self._call_groq(system, user_message, temperature, max_tokens, groq_model)
-        elif provider == "groq_8b":
-            return self._call_groq(system, user_message, temperature, max_tokens, "openai/gpt-oss-20b")
-        elif provider == "ollama":
-            return self._call_ollama(system, user_message, temperature, max_tokens)
-        else:
-            raise RuntimeError(f"Unknown provider: {provider}")
+        if provider in ("groq", "groq_120b", "groq_8b"):
+            if provider == "groq":
+                groq_model = self._resolve_groq_model(model)
+            else:
+                groq_model = self._provider_model(provider)
+            return self._call_groq(
+                system, user_message, temperature, max_tokens,
+                groq_model, deadline=deadline, provider=provider,
+            )
+        if provider == "ollama":
+            return self._call_ollama(
+                system, user_message, temperature, max_tokens, deadline=deadline,
+            )
+        raise ProviderError(f"Unknown provider: {provider}", kind="unknown", provider=provider)
+
+    @staticmethod
+    def _resolve_groq_model(model: Optional[str]) -> str:
+        """Never pass a non-Groq selector into a Groq API call."""
+        if model in GROQ_MODEL_IDS:
+            return str(model)
+        return settings.GROQ_MODEL
 
     # ── Groq ─────────────────────────────────────────────────────
 
@@ -213,79 +733,71 @@ class ContractAnalyzer:
         temperature: float,
         max_tokens: int,
         model: Optional[str] = None,
+        deadline: Optional[float] = None,
+        provider: str = "groq",
     ) -> str:
         self._init_groq()
         if self._groq_client is None:
-            raise RuntimeError("Groq client not initialized (no API key).")
+            raise ProviderError(
+                "Groq client not initialized (no API key).",
+                kind="auth", provider=provider,
+            )
 
         actual_model = model or settings.GROQ_MODEL
+        attempts = max(1, settings.LLM_MAX_RETRIES + 1)
 
-        for attempt in range(3):
+        for attempt in range(attempts):
+            if deadline is not None and time.monotonic() >= deadline:
+                raise ProviderError(
+                    "Groq deadline exceeded", kind="timeout", provider=provider,
+                )
             try:
-                completion = self._groq_client.chat.completions.create(
-                    model=actual_model,
-                    messages=[
+                request_timeout = self._attempt_timeout(deadline)
+                request_kwargs = {
+                    "model": actual_model,
+                    "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user_message},
                     ],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "timeout": request_timeout,
+                }
+                if actual_model.startswith("openai/gpt-oss"):
+                    # The gpt-oss models spend part of max_tokens on hidden
+                    # reasoning. At the default effort they burn 800 tokens
+                    # on a 1,000-token budget and truncate the JSON. Low
+                    # effort keeps reasoning near 20 tokens for these
+                    # structured extraction prompts.
+                    request_kwargs["reasoning_effort"] = "low"
+                try:
+                    completion = self._groq_client.chat.completions.create(
+                        **request_kwargs,
+                    )
+                except TypeError:
+                    # Older groq SDKs do not accept per-request timeout or
+                    # reasoning_effort kwargs.
+                    request_kwargs.pop("timeout", None)
+                    request_kwargs.pop("reasoning_effort", None)
+                    completion = self._groq_client.chat.completions.create(
+                        **request_kwargs,
+                    )
                 content = completion.choices[0].message.content
                 if content is None:
                     raise ValueError("Groq returned empty response content.")
                 return content
             except Exception as exc:
-                err_msg = str(exc).lower()
-                # Daily quota → don't retry, let caller fall through
-                if "429" in str(exc) and self._is_daily_quota_error(exc):
-                    raise RuntimeError(f"Groq daily quota: {exc}") from exc
-                # Other errors → retry with backoff
-                logger.warning("Groq attempt %d/3 failed: %s", attempt + 1, str(exc)[:200])
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
-
-        raise RuntimeError(f"Groq call failed after 3 attempts")
-
-    # ── Gemini ───────────────────────────────────────────────────
-
-    def _call_gemini(
-        self,
-        system: str,
-        user_message: str,
-        temperature: float,
-        max_tokens: int,
-    ) -> str:
-        self._init_gemini()
-        if self._gemini_client is None:
-            raise RuntimeError("Gemini client not initialized (no API key).")
-
-        for attempt in range(3):
-            try:
-                model = self._gemini_client.GenerativeModel(
-                    model_name=settings.GEMINI_MODEL,
-                    system_instruction=system,
+                error = _classify_error(exc, provider)
+                if error.kind in NON_RETRYABLE_KINDS or attempt >= attempts - 1:
+                    raise error
+                delay = self._retry_delay(attempt, error)
+                logger.warning(
+                    "%s attempt %d/%d failed (%s); retrying in %.1fs",
+                    provider, attempt + 1, attempts, error.kind, delay,
                 )
-                generation_config = {
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                }
-                response = model.generate_content(
-                    user_message,
-                    generation_config=generation_config,
-                )
-                if not response or not response.text:
-                    raise ValueError("Gemini returned empty response.")
-                return response.text
-            except Exception as exc:
-                err_msg = str(exc).lower()
-                if "429" in str(exc) or "quota" in err_msg or "rate" in err_msg:
-                    raise RuntimeError(f"Gemini quota: {exc}") from exc
-                logger.warning("Gemini attempt %d/3 failed: %s", attempt + 1, str(exc)[:200])
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+                self._sleep_with_deadline(delay, deadline)
 
-        raise RuntimeError(f"Gemini call failed after 3 attempts")
+        raise ProviderError("Groq call failed", kind="unknown", provider=provider)
 
     # ── Ollama (local dev) ──────────────────────────────────────
 
@@ -295,10 +807,14 @@ class ContractAnalyzer:
         user_message: str,
         temperature: float,
         max_tokens: int,
+        deadline: Optional[float] = None,
     ) -> str:
-        """Call local Ollama with 3s timeout. Fails fast."""
+        """Call local Ollama with a short timeout. Fails fast."""
         import urllib.request
         import urllib.error
+
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ProviderError("Ollama deadline exceeded", kind="timeout", provider="ollama")
 
         url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat"
         body = json.dumps({
@@ -313,24 +829,17 @@ class ContractAnalyzer:
 
         req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            timeout = min(3.0, self._attempt_timeout(deadline))
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                return data.get("message", {}).get("content", "")
+                content = data.get("message", {}).get("content", "")
+                if not content:
+                    raise ValueError("Ollama returned empty response.")
+                return content
         except Exception as exc:
-            raise RuntimeError(f"Ollama call failed: {exc}") from exc
+            raise _classify_error(exc, "ollama") from exc
 
     # ── Clause Analysis ──────────────────────────────────────────
-
-    ANALYZE_CLAUSE_FAILED = {
-        "risk_level": "Medium",
-        "risk_score": 50,
-        "risk_factors": ["AI analysis temporarily unavailable."],
-        "explanation": QUOTA_EXHAUSTED_MSG,
-        "suggested_alternative": "",
-        "missing_protections": ["Unable to determine — please review manually."],
-        "confidence": 40,
-        "needs_human_review": True,
-    }
 
     @staticmethod
     def _parse_quality(raw: str) -> str:
@@ -373,6 +882,17 @@ class ContractAnalyzer:
             base -= 10  # thin signal
         return max(40, min(98, base))
 
+    def _has_decision_fields(self, raw: str) -> bool:
+        """True only when the response contains both risk decision fields."""
+        if self._parse_quality(raw) == "heuristic":
+            return False
+        parsed = self._parse_json(raw)
+        return (
+            isinstance(parsed, dict)
+            and "risk_level" in parsed
+            and "risk_score" in parsed
+        )
+
     def analyze_clause(
         self,
         clause: Dict[str, str],
@@ -395,8 +915,14 @@ class ContractAnalyzer:
             raw_output = self._call_llm(
                 system=SYSTEM_PROMPT, user_message=prompt,
                 temperature=0.2, max_tokens=700, model=model,
+                validator=self._has_decision_fields,
             )
             quality = self._parse_quality(raw_output)
+            if quality == "heuristic":
+                # No decision fields survived parsing. Returning Low/0 here
+                # would be a fabricated score, so fail the clause instead.
+                raise ClauseAnalysisError("Model returned an unreadable response.")
+
             result = self._parse_json(raw_output)
             result["risk_level"] = self._normalize_risk_level(result.get("risk_level", "Medium"))
             result["risk_score"] = self._normalize_risk_score(result.get("risk_score", 50))
@@ -406,6 +932,9 @@ class ContractAnalyzer:
             confidence = self._score_confidence(quality, len(content), llm_ok=True)
             result["confidence"] = confidence
             result["needs_human_review"] = confidence < CONFIDENCE_REVIEW_THRESHOLD
+            result["parse_quality"] = quality
+            result["analysis_status"] = ClauseStatus.COMPLETE.value
+            result["fallback_used"] = False
             logger.info("Clause %s → risk=%s, score=%d", clause_id, result.get("risk_level"), result.get("risk_score"))
             trace_log(
                 "clause_scored", request_id=request_id, clause_id=clause_id,
@@ -413,21 +942,25 @@ class ContractAnalyzer:
                 risk_score=result.get("risk_score"), confidence=confidence,
                 needs_human_review=result["needs_human_review"],
                 parse_quality=quality, prompt_version=ANALYZE_PROMPT_VERSION,
-                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+                groq_model=settings.GROQ_MODEL,
             )
             return result
-        except Exception:
-            logger.warning("Clause %s: all providers exhausted, returning heuristic fallback.", clause_id)
-            fallback = dict(self.ANALYZE_CLAUSE_FAILED)
-            fallback["suggested_alternative"] = content
+        except ClauseAnalysisError:
+            raise
+        except Exception as exc:
+            error = _classify_error(exc, "llm")
+            logger.warning(
+                "Clause %s: analysis unavailable (%s).", clause_id, error.kind,
+            )
             trace_log(
                 "clause_scored", request_id=request_id, clause_id=clause_id,
-                clause_type=clause_type, risk_level="Medium", risk_score=50,
-                confidence=40, needs_human_review=True, parse_quality="fallback",
+                clause_type=clause_type, risk_level=None, risk_score=None,
+                confidence=0, needs_human_review=True, parse_quality=ParseQuality.FAILED.value,
+                llm_available=False, error_kind=error.kind,
                 prompt_version=ANALYZE_PROMPT_VERSION,
-                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+                groq_model=settings.GROQ_MODEL,
             )
-            return fallback
+            raise ClauseAnalysisError(QUOTA_EXHAUSTED_MSG) from exc
 
     # ── Contract-Level Aggregation ──────────────────────────────
 
@@ -440,14 +973,18 @@ class ContractAnalyzer:
         total_score = 0
         breakdown: Dict[str, int] = {"High": 0, "Medium": 0, "Low": 0}
         high_risk: List[Dict] = []
+        scored = 0
         for c in clauses:
-            rl = c.get("risk_level", "Low")
-            rs = c.get("risk_score", 0)
+            rl = c.get("risk_level")
+            rs = c.get("risk_score")
+            if rl not in ("High", "Medium", "Low") or not isinstance(rs, (int, float)):
+                continue
+            scored += 1
             total_score += rs
             breakdown[rl] = breakdown.get(rl, 0) + 1
             if rl == "High":
                 high_risk.append({"id": c.get("id"), "title": c.get("title"), "risk_score": rs, "explanation": c.get("explanation", "")})
-        overall = round(total_score / len(clauses), 1) if clauses else 0
+        overall = round(total_score / scored, 1) if scored else 0
         if overall >= 75:
             assessment = "High Risk — This contract contains significant risks that require attention before signing."
         elif overall >= 45:
@@ -534,6 +1071,7 @@ class ContractAnalyzer:
         self,
         contract_text: str,
         question: str,
+        model: Optional[str] = None,
         request_id: Optional[str] = None,
     ) -> str:
         if not contract_text.strip():
@@ -547,28 +1085,67 @@ class ContractAnalyzer:
             answer = self._call_llm(
                 system="You are a helpful legal contract assistant. Answer concisely.",
                 user_message=prompt, temperature=0.3, max_tokens=300,
+                model=model,
             )
             answer = answer.strip()
+            if not answer:
+                raise ValueError("empty answer")
             trace_log(
                 "qa", request_id=request_id, question=question[:300],
                 contract_chars=len(contract_text),
                 retrieved_passages=len(relevant.split("\n\n")),
                 retrieved_chars=len(relevant), answer_chars=len(answer),
+                requested_model=model,
                 prompt_version=QNA_PROMPT_VERSION,
-                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+                groq_model=settings.GROQ_MODEL,
             )
             return answer
         except Exception:
             trace_log(
                 "qa", request_id=request_id, question=question[:300],
                 contract_chars=len(contract_text), retrieved_chars=len(relevant),
-                answer_chars=0, llm_available=False,
+                answer_chars=0, llm_available=False, requested_model=model,
                 prompt_version=QNA_PROMPT_VERSION,
-                groq_model=settings.GROQ_MODEL, gemini_model=settings.GEMINI_MODEL,
+                groq_model=settings.GROQ_MODEL,
             )
             return QNA_EXHAUSTED_MSG
 
     # ── JSON Parsing ────────────────────────────────────────────
+
+    def _parse_json_list(self, raw: str) -> Any:
+        """Parse a JSON array, salvaging complete objects from a cut-off reply.
+
+        Reasoning models sometimes run out of max_tokens mid-array. Returning
+        None for the whole response throws away every complete finding before
+        the cut, so trim back to the last closed object and retry.
+        """
+        text = raw.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, (list, dict)):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        start = text.find("[")
+        if start < 0:
+            return self._parse_json(text)
+        body = text[start:]
+        last_brace = body.rfind("}")
+        while last_brace > 0:
+            candidate = body[:last_brace + 1] + "]"
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                last_brace = body.rfind("}", 0, last_brace)
+                continue
+            last_brace = body.rfind("}", 0, last_brace)
+        return self._parse_json(text)
 
     def _parse_json(self, raw: str) -> Dict[str, Any]:
         raw = raw.strip()
@@ -644,6 +1221,9 @@ class ContractAnalyzer:
             "risk_level": "Low", "risk_score": 0, "risk_factors": [],
             "explanation": message, "suggested_alternative": "", "missing_protections": [],
             "confidence": 95, "needs_human_review": False,
+            "parse_quality": ParseQuality.EMPTY.value,
+            "analysis_status": ClauseStatus.COMPLETE.value,
+            "fallback_used": False,
         }
 
 

@@ -3,8 +3,8 @@ ContractGuard - Confidence threshold + human review + tracing tests.
 
 Fully offline (LLM calls are mocked). Verifies:
 - clean model JSON -> high confidence, auto-scored (no review flag)
-- unparsable output -> heuristic confidence, flagged for human review
-- provider outage -> Medium/50 fallback, confidence 40, flagged
+- unparsable output -> clause marked failed, not given a fabricated score
+- provider outage -> ClauseAnalysisError, sanitized message
 - short clauses take the thin-signal penalty
 - trace_log emits one JSON record per call with the required keys
 """
@@ -15,11 +15,15 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.services.llm_service import (
     CONFIDENCE_REVIEW_THRESHOLD,
+    ClauseAnalysisError,
     ContractAnalyzer,
+    QUOTA_EXHAUSTED_MSG,
 )
 
 LONG_CLAUSE = {
@@ -60,23 +64,23 @@ def test_clean_json_is_auto_scored():
     assert result["needs_human_review"] is False
 
 
-def test_heuristic_parse_is_flagged():
+def test_unparsable_output_is_marked_failed():
     analyzer = _analyzer()
     garbage = "risk is high trust me " * 20  # no JSON object at all
     with patch.object(analyzer, "_call_llm", return_value=garbage):
-        result = analyzer.analyze_clause(dict(LONG_CLAUSE))
-    assert result["confidence"] == 55
-    assert result["needs_human_review"] is True
+        with pytest.raises(ClauseAnalysisError):
+            analyzer.analyze_clause(dict(LONG_CLAUSE))
 
 
-def test_provider_outage_falls_back_and_flags():
+def test_provider_outage_raises_analysis_error():
     analyzer = _analyzer()
     with patch.object(analyzer, "_call_llm", side_effect=RuntimeError("all down")):
-        result = analyzer.analyze_clause(dict(LONG_CLAUSE))
-    assert result["risk_level"] == "Medium"
-    assert result["risk_score"] == 50
-    assert result["confidence"] == 40
-    assert result["needs_human_review"] is True
+        with pytest.raises(ClauseAnalysisError) as exc:
+            analyzer.analyze_clause(dict(LONG_CLAUSE))
+    message = str(exc.value)
+    for forbidden in ("429", "org_", "http", "RuntimeError", "all down"):
+        assert forbidden not in message
+    assert QUOTA_EXHAUSTED_MSG == message
 
 
 def test_short_clause_takes_thin_signal_penalty():

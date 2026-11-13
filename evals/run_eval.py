@@ -3,20 +3,20 @@
 Pipeline per clause (same code as production):
   1. PDFExtractor.segment_clauses (deterministic, no LLM)
   2. scan_red_flags on the clause (deterministic regex)
-  3. ContractAnalyzer.analyze_clause (LLM when keys exist, else the
-     Medium/50 heuristic fallback with needs_human_review=True)
+  3. ContractAnalyzer.analyze_clause (LLM when keys exist; otherwise the
+     clause is recorded as failed/Unknown with needs_human_review=True)
 
 Labels: evals/labels.jsonl (single reviewer — the repo owner; rationale
 per clause). Risky = expected High or Medium.
 
 Metrics:
   - scanner precision/recall on risky (CRITICAL/HIGH regex hit)
-  - llm reviewer agreement (risk_level == expected)
+  - llm reviewer agreement (risk_level == expected; failed = Unknown)
   - needs_human_review rate (the confidence-threshold path firing)
 
 Modes:
-  offline (default): no API keys needed; exercises fallback + review flag.
-  --live: uses GROQ/GEMINI keys for real LLM scoring.
+  offline (default): no API keys needed; exercises provider-failure handling.
+  --live: uses the GROQ key for real LLM scoring.
 
 Usage (from repo root):
     backend/venv/bin/python evals/run_eval.py [--live] [--min-precision 0.5]
@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from app.core.config import settings  # noqa: E402
-from app.services.llm_service import ContractAnalyzer  # noqa: E402
+from app.services.llm_service import ClauseAnalysisError, ContractAnalyzer  # noqa: E402
 from app.services.pdf_extractor import PDFExtractor  # noqa: E402
 from app.skills.redflag_scanner import scan_red_flags  # noqa: E402
 
@@ -60,15 +60,14 @@ def main():
     parser.add_argument("--min-high-recall", type=float, default=0.85)
     args = parser.parse_args()
 
-    live = args.live and (settings.has_groq or settings.has_gemini)
-    print(f"Mode: {'LIVE (keys present)' if live else 'OFFLINE (heuristic fallback)'}")
+    live = args.live and settings.has_groq
+    print(f"Mode: {'LIVE (keys present)' if live else 'OFFLINE (provider-failure path)'}")
     if args.live and not live:
-        print("WARNING: --live requested but no GROQ/GEMINI key configured; running offline.")
+        print("WARNING: --live requested but no GROQ key configured; running offline.")
     if not live:
-        # Force the fallback path in-process: backend/.env may hold real keys,
+        # Force the failure path in-process: backend/.env may hold a real key,
         # which would otherwise burn minutes on network retries per clause.
         settings.GROQ_API_KEY = ""
-        settings.GEMINI_API_KEY = ""
 
     labels = load_labels()
     extractor = PDFExtractor()
@@ -87,16 +86,27 @@ def main():
                 if f["category"] != "Missing Clause"
             ]
             scanner_risky = any(f["severity"] in RISKY_SEV for f in findings)
-            scored = analyzer.analyze_clause(clause)
+            try:
+                scored = analyzer.analyze_clause(clause)
+                llm_level = scored["risk_level"]
+                confidence = scored["confidence"]
+                needs_review = scored["needs_human_review"]
+                analysis_status = scored.get("analysis_status", "complete")
+            except ClauseAnalysisError:
+                llm_level = "Unknown"
+                confidence = 0
+                needs_review = True
+                analysis_status = "failed"
             rows.append({
                 "contract": contract,
                 "clause_id": clause["id"],
                 "expected": label["expected"],
                 "scanner_risky": scanner_risky,
                 "scanner_sev": sorted({f["severity"] for f in findings}),
-                "llm_level": scored["risk_level"],
-                "confidence": scored["confidence"],
-                "needs_review": scored["needs_human_review"],
+                "llm_level": llm_level,
+                "confidence": confidence,
+                "needs_review": needs_review,
+                "analysis_status": analysis_status,
             })
 
     assert len(rows) == len(labels), f"segmented {len(rows)} labeled clauses, want {len(labels)}"
@@ -112,18 +122,21 @@ def main():
     agreement = sum(1 for r in rows if r["llm_level"] == r["expected"]) / len(rows)
     review_rate = sum(1 for r in rows if r["needs_review"]) / len(rows)
     # Safety gate: an expected-High clause must never pass silently. Caught if
-    # the scanner fires OR the LLM rates it above Low.
+    # the scanner fires OR the LLM rates it High/Medium. A failed (Unknown)
+    # clause is not evidence of detection.
     highs = [r for r in rows if r["expected"] == "High"]
     high_recall = (
-        sum(1 for r in highs if r["scanner_risky"] or r["llm_level"] != "Low") / len(highs)
+        sum(1 for r in highs if r["scanner_risky"] or r["llm_level"] in ("High", "Medium")) / len(highs)
         if highs else 1.0
     )
+    failed = sum(1 for r in rows if r["analysis_status"] == "failed")
 
     print(f"\nContracts: {len(CONTRACT_TYPES)}, labeled clauses: {len(rows)}")
     print(f"Scanner risky-clause precision: {precision:.2f} ({tp}tp/{fp}fp)")
     print(f"Scanner risky-clause recall:    {recall:.2f} ({tp}tp/{fn}fn)")
     print(f"LLM reviewer agreement:         {agreement:.2f}")
     print(f"Flagged for human review:       {review_rate:.2f}")
+    print(f"Clauses with no LLM score:      {failed}/{len(rows)}")
     print("\nPer-contract agreement:")
     by_contract = Counter()
     for r in rows:
@@ -148,9 +161,13 @@ def main():
         "llm_agreement": round(agreement, 3),
         "high_recall": round(high_recall, 3),
         "review_rate": round(review_rate, 3),
+        "failed_clauses": failed,
     }, indent=2), encoding="utf-8")
 
-    print(f"High-risk recall (scanner OR llm != Low): {high_recall:.2f}")
+    print(f"High-risk recall (scanner OR LLM High/Medium): {high_recall:.2f}")
+    if not live:
+        print("EVAL SKIP (offline: no LLM scores to gate)")
+        return 0
     ok = high_recall >= args.min_high_recall
     print("EVAL " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1

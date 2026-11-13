@@ -289,12 +289,13 @@ def test_report_enriched_contains_sections():
     assert resp.status_code == 200
     html = resp.content.decode("utf-8", errors="ignore")
 
-    assert "5C Enforceability" in html
-    assert "Critical Risk Flags" in html
-    assert "Executive Summary" in html
-    assert "Top Risk Findings" in html
-    assert "Negotiation Playbook" in html
-    assert "Missing Clauses" in html
+    html_lower = html.lower()
+    assert "5c enforceability validation" in html_lower
+    assert "critical risk flags" in html_lower
+    assert "executive summary" in html_lower
+    assert "top risk findings" in html_lower
+    assert "negotiation playbook" in html_lower
+    assert "missing clauses" in html_lower
 
 
 # ── 7-11: Scanned/Garbled PDF Detection ───────────────────────────

@@ -18,7 +18,7 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-black px-4">
+        <div className="min-h-screen flex items-center justify-center bg-black px-4" data-app-state="error" role="alert">
           <div className="max-w-md w-full card p-8 text-center space-y-4">
             <AlertTriangle className="w-14 h-14 text-red-400 mx-auto" />
             <h2 className="text-xl font-bold text-white">Something went wrong</h2>

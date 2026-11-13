@@ -78,6 +78,9 @@ uvicorn main:app --reload --port 8000
 
 API docs at: http://localhost:8000/docs
 
+`GET /api/models` reports the single supported model (`qwen/qwen3.8-27b`).
+The UI has no model picker, so it cannot offer an unsupported ID.
+
 ### 5. Setup & Start Frontend
 
 ```bash
@@ -181,16 +184,37 @@ The LLM scores every clause High / Medium / Low. What each level means, with rea
 
 ## 🧍 Confidence & Human Review
 
-Scores below **confidence 60** are provisional: the API still returns them (the pipeline needs a number) but sets `needs_human_review: true`, and the frontend should gate on it instead of auto-accepting. Response carries `needs_review_count` + `needs_review_clause_ids`.
+Scores below **confidence 60** are provisional: the API returns them with
+`needs_human_review: true`, and the frontend should gate on the flag instead
+of auto-accepting. If a provider cannot produce a usable response, the clause
+is marked `analysis_status: "failed"` with `risk_score: null` and excluded
+from the overall score. If every clause fails, `POST /api/analyze` returns
+**503** rather than inventing a Medium/50 result.
 
 | Path | Confidence | Reviewed? |
 |---|---|---|
 | Clean model JSON | 85 (−10 if clause < 120 chars: thin signal) | No |
 | Truncated JSON, decision fields recovered | 70 | No |
-| Unparsable output, fields heuristically extracted | 55 | **Yes** |
-| All providers down → Medium/50 fallback | 40 | **Yes** |
+| Unusable output → clause marked failed | — | **Yes** |
+| All providers down → 503 (or partial result if some clauses succeeded) | — | **Yes** |
 
-Measured on the eval set (`evals/run_eval.py`): live review rate **0.00** (30/30 parsed), offline (no keys) **1.00** — the flag path provably fires when the LLM is unreachable. Unit-covered in `backend/tests/test_confidence_review.py`.
+Measured on the eval set (`evals/run_eval.py`): live review rate depends on
+provider availability; offline (no keys) **1.00**, with every clause marked
+failed. Unit-covered in `backend/tests/test_confidence_review.py` and
+`backend/tests/test_llm_reliability.py`.
+
+## 🧭 State machines
+
+The analysis journey, report download, and contract Q&A are explicit reducers
+with guarded transitions and stale-response protection
+(`frontend/src/state/`). The backend wire values are centralized in
+`backend/app/core/status.py`. Browser agents and accessibility tooling can read
+the live state from `data-app-state`, `data-analysis-status`,
+`data-five-c-status`, `data-report-state`, `data-qa-state`, and
+`data-upload-state`.
+
+Full inventory and diagrams: [documents/STATE_MACHINES.md](documents/STATE_MACHINES.md).
+Run the frontend transition tests with `npm run test:state` from `frontend/`.
 
 ## 🔎 Tracing
 
@@ -198,7 +222,8 @@ Every request emits structured JSON lines on the `contractguard.trace` logger (s
 
 | Event | Key fields |
 |---|---|
-| `analyze` | `request_id`, `contract_type`, `type_confidence`, `total_clauses`, `needs_review_*`, `overall_score`, `ai_provider`, `requested_model`, prompt versions, `elapsed_seconds` |
+| `pipeline_stage` | `request_id`, `stage` (`validate` → `extract` → `classify` → `red_flags` → `segment` → `skills` → `clauses` → `aggregate`), `status`, stage detail |
+| `analyze` | `request_id`, `contract_type`, `type_confidence`, `total_clauses`, `analysis_status`, `analyzed_clause_count`, `failed_clause_count`, `needs_review_*`, `overall_score`, `ai_provider`, `requested_model`, prompt versions, `elapsed_seconds` |
 | `clause_scored` | `request_id`, `clause_id`, `risk_level/score`, `confidence`, `needs_human_review`, `parse_quality`, model + prompt versions |
 | `clause_rag` | `request_id`, `clause_id`, `fair_alternatives` (retrieved fair-clause count) |
 | `qa` | `request_id`, `question`, `retrieved_passages/chars`, `answer_chars`, model + prompt versions |
@@ -209,23 +234,23 @@ Prompt versions (`cg-sys-v2`, `cg-analyze-v3`, `cg-qna-v2`) live in `llm_service
 
 | Failure | Behavior | Where |
 |---|---|---|
-| Groq rate limits / outages | 3 attempts with exponential backoff per provider; daily-quota errors skip to the next provider instead of retrying; total outage returns a labeled Medium/50 heuristic, never a 500 | `llm_service.py` `_call_groq` / `_call_llm`, tested in `test_day11.py` |
-| Dead model names | 2026-09-13 probe: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `gemini-2.0-flash` all 404. Defaults now point at verified-live `openai/gpt-oss-120b` (Groq primary, 1.9 s clean-JSON score) and `gemini-3.6-flash`; chain reordered groq-first | `config.py`, `.env.example`, probed live before changing |
+| Groq rate limits / outages | Per-provider timeouts + jittered retries; RPM/TPM limits get a short cooldown, daily quota cools until UTC midnight, and a circuit breaker half-opens after 30 s. Unusable responses fall through to the next provider. If all clauses fail, the API returns 503 (or a partial result with failed clauses excluded from the score). | `llm_service.py`, `main.py`, tested in `test_llm_reliability.py` |
+| Dead model names | 2026-09-13 probe: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `gemini-2.0-flash` all 404. The app uses `qwen/qwen3.8-27b` only; Gemini 3.6 Flash was removed. The model picker was removed so the app cannot offer an unsupported ID. | `config.py`, `main.py`, `skill_analyzer.py` |
 | Scanned / image-only PDFs | pdfplumber fallback when PyMuPDF yields nothing; garbled-text heuristics (char/word/special ratios) raise `ScannedPDFError` → HTTP 422 with a plain-language message | `pdf_extractor.py`, tested in `test_day9.py` |
 | WeasyPrint failure | Missing system libs detected once and cached; template render retries with a stripped context; any PDF failure returns the HTML report instead of erroring | `report_generator.py`, tested in `test_day10.py` |
 
 ## 📊 Eval
 
-`evals/` holds 3 contracts (30 labeled clauses: the 10-clause sample employment contract, 10 fair clauses, 10 supplier fair clauses), single-reviewer labels with per-clause rationale, and `run_eval.py` (offline heuristic mode + `--live` real-LLM mode). Reproduce: `backend/venv/bin/python evals/run_eval.py [--live]`.
+`evals/` holds 3 contracts (30 labeled clauses: the 10-clause sample employment contract, 10 fair clauses, 10 supplier fair clauses), single-reviewer labels with per-clause rationale, and `run_eval.py` (offline provider-failure mode + `--live` real-LLM mode). Reproduce: `backend/venv/bin/python evals/run_eval.py [--live]`.
 
-| Slice (2026-09-13) | Offline | Live (gpt-oss-120b) |
+| Slice (2026-09-13) | Offline (no keys) | Live (historical gpt-oss-120b run) |
 |---|---|---|
 | Scanner risky-clause precision / recall | 0.00 / 0.00 | 0.00 / 0.00 |
-| LLM reviewer agreement (30 clauses) | 0.10 | 0.23 (employment 7/10, fair 0/10, supplier 0/10) |
+| LLM reviewer agreement (30 clauses) | 0.00 (every clause failed) | 0.23 (employment 7/10, fair 0/10, supplier 0/10) |
 | Flagged for human review | 1.00 | 0.00 |
-| High-risk recall (no risky clause passes silently) | 1.00 | **1.00** |
+| High-risk recall (scanner OR LLM High/Medium) | 0.00 (not evaluated) | **1.00** |
 
-Read of the misses: the regex scanner has no recall on the sample contract (real risky phrasings like "may terminate … without notice" don't match its patterns) and over-fires twice on fair language ("in no event" in a standard waiver; "indemnify and hold harmless" with carve-outs). The LLM catches all 10 risky employment clauses but grades fair language harshly. The CI-style gate therefore pins **high-risk recall ≥ 0.85** — the dangerous direction for a safety tool — while precision/agreement stay informational. Planned, not yet implemented: scanner patterns mined from these misses + fair-language few-shots in the scoring prompt.
+Read of the misses: the regex scanner has no recall on the sample contract (real risky phrasings like "may terminate … without notice" don't match its patterns) and over-fires twice on fair language ("in no event" in a standard waiver; "indemnify and hold harmless" with carve-outs). The LLM catches all 10 risky employment clauses but grades fair language harshly. The CI-style gate therefore pins **high-risk recall ≥ 0.85** — the dangerous direction for a safety tool — while precision/agreement stay informational. Offline mode reports `EVAL SKIP` because there are no LLM scores to gate. Planned, not yet implemented: scanner patterns mined from these misses + fair-language few-shots in the scoring prompt.
 
 ---
 

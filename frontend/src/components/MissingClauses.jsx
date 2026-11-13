@@ -4,19 +4,20 @@ export default function MissingClauses({ missingClauses = [] }) {
   if (!missingClauses || missingClauses.length === 0) return null;
 
   return (
-    <div className="card p-4 animate-slide-up">
-      <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle className="w-4 h-4 text-amber-400" />
-        <h3 className="text-sm font-bold text-white">Missing Clauses</h3>
-        <span className="text-[10px] text-white/30">({missingClauses.length})</span>
+    <section className="border-y border-white/10 py-4 animate-slide-up">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-400" />
+        <h2 className="text-sm font-semibold text-white">Missing clauses</h2>
+        <span className="text-[10px] tabular-nums text-white/30">{missingClauses.length}</span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {missingClauses.map((mc, i) => (
-          <span key={i} className="text-[11px] bg-amber-500/10 text-amber-300/80 border border-amber-500/20 px-2.5 py-1 rounded-full">
-            {mc}
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+        {missingClauses.map((item, index) => (
+          <span key={index} className="inline-flex items-center gap-2 text-sm text-white/50">
+            <span className="h-1 w-1 shrink-0 bg-amber-500" />
+            {item}
           </span>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

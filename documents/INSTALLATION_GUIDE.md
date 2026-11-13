@@ -63,7 +63,8 @@ Now edit `.env` and fill in your values:
 ```bash
 # REQUIRED — Get your key from https://console.groq.com/keys
 GROQ_API_KEY=gsk_your_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=qwen/qwen3.8-27b
+PROVIDER_ORDER=groq
 
 # Qdrant — use "local" for embedded mode (no Docker needed)
 QDRANT_MODE=local
@@ -81,7 +82,7 @@ FRONTEND_URL=http://localhost:5173
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GROQ_API_KEY` | ✅ Yes | Groq API key from console.groq.com/keys |
-| `GROQ_MODEL` | No | Default: `llama-3.3-70b-versatile` |
+| `GROQ_MODEL` | No | Default: `qwen/qwen3.8-27b` (only supported model) |
 | `QDRANT_MODE` | No | `local` (embedded) or `remote` (Docker/server) |
 | `QDRANT_HOST` | No | Qdrant host (for remote mode) |
 | `QDRANT_PORT` | No | Qdrant port (default: 6333) |

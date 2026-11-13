@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
-const SEVERITY_COLORS = {
-  CRITICAL: 'bg-red-500/20 text-red-400 border-red-500/30',
-  HIGH: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  MEDIUM: 'bg-amber-500/10 text-amber-300/80 border-amber-500/20',
-  LOW: 'bg-white/5 text-white/50 border-white/10',
+const SEVERITY = {
+  CRITICAL: 'text-red-400',
+  HIGH: 'text-amber-400',
+  MEDIUM: 'text-amber-300/80',
+  LOW: 'text-white/35',
 };
 const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 };
 
@@ -16,84 +16,98 @@ export default function FindingsList({ findings = [] }) {
     (a, b) => (PRIORITY_ORDER[a.priority || 'Low'] ?? 99) - (PRIORITY_ORDER[b.priority || 'Low'] ?? 99)
   );
 
-  const critical = findings.filter((f) => f.severity === 'CRITICAL').length;
-  const high = findings.filter((f) => f.severity === 'HIGH').length;
-  const medium = findings.filter((f) => f.severity === 'MEDIUM').length;
-  const low = findings.filter((f) => f.severity === 'LOW').length;
+  const critical = findings.filter((finding) => finding.severity === 'CRITICAL').length;
+  const high = findings.filter((finding) => finding.severity === 'HIGH').length;
+  const medium = findings.filter((finding) => finding.severity === 'MEDIUM').length;
+  const low = findings.filter((finding) => finding.severity === 'LOW').length;
 
   return (
-    <section className="space-y-3 animate-slide-up">
-      <div className="flex items-center gap-2 flex-wrap">
-        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-        <h3 className="text-lg font-bold text-white">Top Risk Findings</h3>
-        <div className="flex gap-1.5 text-[10px] font-medium flex-wrap">
-          {critical > 0 && <span className="text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full shrink-0">{critical} Critical</span>}
-          {high > 0 && <span className="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">{high} High</span>}
-          {medium > 0 && <span className="text-amber-300/70 bg-amber-500/5 px-2 py-0.5 rounded-full shrink-0">{medium} Med</span>}
-          {low > 0 && <span className="text-white/30 bg-white/5 px-2 py-0.5 rounded-full shrink-0">{low} Low</span>}
+    <section className="animate-slide-up">
+      <div className="flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent-400">Top risk findings</p>
+          <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold tracking-tight text-white">
+            <AlertTriangle className="h-4 w-4 text-amber-400" /> What needs attention
+          </h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.12em]">
+          {critical > 0 && <span className="text-red-400">{critical} critical</span>}
+          {high > 0 && <span className="text-amber-400">{high} high</span>}
+          {medium > 0 && <span className="text-amber-300/70">{medium} medium</span>}
+          {low > 0 && <span className="text-white/30">{low} low</span>}
         </div>
       </div>
 
-      <div className="space-y-2">
-        {sorted.map((f, i) => (
-          <FindingCard key={i} finding={f} />
+      <div className="divide-y divide-white/5 border-b border-white/5">
+        {sorted.map((finding, index) => (
+          <FindingRow key={index} finding={finding} index={index} />
         ))}
       </div>
     </section>
   );
 }
 
-function FindingCard({ finding }) {
+function FindingRow({ finding, index }) {
   const [expanded, setExpanded] = useState(false);
-  const f = finding;
-  const sevStyle = SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.LOW;
-  const hasExtra = f.industry_best_practice || f.suggested_negotiation || f.suggested_clause;
+  const hasExtra = Boolean(
+    finding.industry_best_practice
+    || finding.suggested_negotiation
+    || finding.suggested_clause
+  );
+  const severity = finding.severity || 'LOW';
 
   return (
-    <div className="card overflow-hidden">
+    <div>
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left p-4 hover:bg-white/[0.02] transition-colors"
+        type="button"
+        onClick={() => hasExtra && setExpanded(!expanded)}
+        className={`grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto_1rem] items-start gap-3 py-4 text-left transition-colors sm:grid-cols-[2rem_minmax(0,1fr)_4.5rem_1rem] ${
+          hasExtra ? 'hover:bg-white/[0.02]' : 'cursor-default'
+        }`}
+        aria-expanded={hasExtra ? expanded : undefined}
       >
-        <div className="flex items-start gap-3">
-          <span className={`text-[10px] font-bold uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full border ${sevStyle}`}>
-            {f.severity}
+        <span className="mt-0.5 text-[10px] tabular-nums text-white/25">{String(index + 1).padStart(2, '0')}</span>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium leading-6 text-white break-words">
+            {finding.finding || finding.pattern || 'Untitled finding'}
           </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white break-words">{f.finding || f.pattern || ''}</p>
-            {f.area && <p className="text-[10px] text-white/30 mt-0.5 uppercase tracking-wider">{f.area}</p>}
-            {(f.why_it_matters || f.evidence) && (
-              <p className="text-xs text-white/40 mt-1.5 line-clamp-2 break-words">
-                {f.why_it_matters || f.evidence || ''}
-              </p>
-            )}
-          </div>
-          {hasExtra && (
-            <span className="shrink-0 mt-1">{expanded ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}</span>
+          {finding.area && (
+            <span className="mt-0.5 block text-[9px] uppercase tracking-[0.14em] text-white/30">{finding.area}</span>
           )}
-        </div>
+          {(finding.why_it_matters || finding.evidence) && (
+            <span className="mt-1.5 line-clamp-2 block text-xs leading-5 text-white/40">
+              {finding.why_it_matters || finding.evidence}
+            </span>
+          )}
+        </span>
+        <span className={`pt-0.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] ${SEVERITY[severity] || SEVERITY.LOW}`}>
+          {severity}
+        </span>
+        {hasExtra ? (
+          expanded ? <ChevronUp className="mt-1 h-4 w-4 justify-self-end text-white/25" /> : <ChevronDown className="mt-1 h-4 w-4 justify-self-end text-white/25" />
+        ) : (
+          <span aria-hidden="true" />
+        )}
       </button>
 
       {expanded && hasExtra && (
-        <div className="px-4 pb-4 pt-0 border-t border-white/5 space-y-3 animate-slide-up">
-          {f.industry_best_practice && (
-            <div className="bg-accent-500/5 rounded-lg p-3 border border-accent-500/10">
-              <p className="text-[10px] uppercase tracking-wider text-accent-400 font-bold mb-1">Industry Best Practice</p>
-              <p className="text-xs text-white/60 break-words">{f.industry_best_practice}</p>
+        <div className="grid gap-5 border-t border-white/5 bg-white/[0.02] px-4 py-4 sm:grid-cols-2 sm:px-8">
+          {finding.industry_best_practice && (
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-400">Industry standard</p>
+              <p className="mt-1.5 text-sm leading-6 text-white/50">{finding.industry_best_practice}</p>
             </div>
           )}
-          {f.suggested_negotiation && (
-            <div className="bg-emerald-500/5 rounded-lg p-3 border border-emerald-500/10">
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-1">Suggested Negotiation</p>
-              <p className="text-xs text-white/60 break-words">{f.suggested_negotiation}</p>
+          {finding.suggested_negotiation && (
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-400">Suggested negotiation</p>
+              <p className="mt-1.5 text-sm leading-6 text-white/50">{finding.suggested_negotiation}</p>
             </div>
           )}
-          {f.suggested_clause && (
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">Suggested Clause</p>
-              <div className="overflow-x-auto">
-                <p className="text-xs text-white/50 font-mono break-words">{f.suggested_clause}</p>
-              </div>
+          {finding.suggested_clause && (
+            <div className="border-l-2 border-white/15 pl-4 sm:col-span-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/30">Suggested clause</p>
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-6 text-white/45">{finding.suggested_clause}</p>
             </div>
           )}
         </div>

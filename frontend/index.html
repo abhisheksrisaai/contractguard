@@ -10,8 +10,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <title>ContractGuard — AI Contract Risk Analysis</title>
     <meta name="theme-color" content="#000000" />
+    <script>
+      (() => {
+        try {
+          const key = 'contractguard.theme';
+          const saved = localStorage.getItem(key);
+          const theme = saved === 'light' || saved === 'dark'
+            ? saved
+            : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.dataset.theme = theme;
+          if (theme === 'light') {
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#F5F7FB');
+          }
+        } catch {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-black text-white antialiased">
+  <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

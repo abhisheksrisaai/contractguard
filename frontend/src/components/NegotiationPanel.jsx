@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 
-const PRIORITY_COLORS = {
-  High: 'border-red-500/20 bg-red-500/5',
-  Medium: 'border-amber-500/20 bg-amber-500/5',
-  Low: 'border-white/10 bg-white/[0.02]',
+const PRIORITY = {
+  High: 'text-red-400',
+  Medium: 'text-amber-400',
+  Low: 'text-white/35',
 };
 
 export default function NegotiationPanel({ opportunities = [], addToast }) {
@@ -16,89 +16,84 @@ export default function NegotiationPanel({ opportunities = [], addToast }) {
   });
 
   return (
-    <section className="space-y-3 animate-slide-up">
-      <h3 className="text-lg font-bold text-white flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-accent-400 shrink-0" />
-        Negotiation Playbook
-        <span className="text-sm font-normal text-white/30">({opportunities.length} items)</span>
-      </h3>
+    <section className="animate-slide-up">
+      <div className="flex items-end justify-between gap-3 border-b border-white/10 pb-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent-400">Negotiation playbook</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">What to ask for</h2>
+        </div>
+        <span className="text-[10px] uppercase tracking-[0.12em] text-white/30">{opportunities.length} items</span>
+      </div>
 
-      <div className="grid gap-3">
-        {sorted.map((op, i) => (
-          <NegotiationCard key={i} op={op} addToast={addToast} />
+      <div className="divide-y divide-white/5 border-b border-white/5">
+        {sorted.map((opportunity, index) => (
+          <PlaybookRow key={index} opportunity={opportunity} index={index} addToast={addToast} />
         ))}
       </div>
     </section>
   );
 }
 
-function NegotiationCard({ op, addToast }) {
+function PlaybookRow({ opportunity, index, addToast }) {
   const [copied, setCopied] = useState(false);
-  const borderStyle = PRIORITY_COLORS[op.priority] || PRIORITY_COLORS.Low;
+  const priority = opportunity.priority || 'Medium';
 
-  const handleCopy = (text) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const copyClause = () => {
+    if (!opportunity.suggested_clause) return;
+    navigator.clipboard.writeText(opportunity.suggested_clause).then(() => {
       setCopied(true);
       addToast?.('Clause copied to clipboard', 'success');
-      setTimeout(() => setCopied(false), 2000);
+      window.setTimeout(() => setCopied(false), 1800);
     }).catch(() => {});
   };
 
   return (
-    <div className={`card overflow-hidden border ${borderStyle}`}>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0 ${
-            op.priority === 'High' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-            op.priority === 'Medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-            'bg-white/5 text-white/40 border-white/10'
-          }`}>
-            {op.priority || 'Medium'} priority
-          </span>
+    <div className="grid gap-3 py-4 sm:grid-cols-[2rem_minmax(0,1fr)] sm:gap-4">
+      <span className="text-[10px] tabular-nums text-white/25">{String(index + 1).padStart(2, '0')}</span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <p className="text-sm font-medium leading-6 text-white">{opportunity.risk}</p>
+          <span className={`text-[9px] font-semibold uppercase tracking-[0.12em] ${PRIORITY[priority] || PRIORITY.Low}`}>{priority} priority</span>
         </div>
 
-        <p className="text-sm font-semibold text-white break-words">{op.risk}</p>
-
-        <div className="space-y-2">
-          {op.why_it_matters && (
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          {opportunity.why_it_matters && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Why it matters</p>
-              <p className="text-xs text-white/50 break-words">{op.why_it_matters}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/30">Why it matters</p>
+              <p className="mt-1 text-xs leading-5 text-white/45">{opportunity.why_it_matters}</p>
             </div>
           )}
-
-          {op.industry_best_practice && (
+          {opportunity.industry_best_practice && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-accent-400 font-bold mb-0.5">Industry standard</p>
-              <p className="text-xs text-white/50 break-words">{op.industry_best_practice}</p>
-            </div>
-          )}
-
-          {op.suggested_negotiation && (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-0.5">Suggested negotiation</p>
-              <p className="text-xs text-white/60 break-words">{op.suggested_negotiation}</p>
-            </div>
-          )}
-
-          {op.suggested_clause && (
-            <div className="bg-white/[0.03] rounded-lg border border-white/10 relative">
-              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold">Suggested clause</p>
-                <button
-                  onClick={() => handleCopy(op.suggested_clause)}
-                  className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition text-white/30 hover:text-white shrink-0"
-                  title="Copy clause"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              <div className="overflow-x-auto px-3 pb-3">
-                <p className="text-xs text-white/40 font-mono leading-relaxed whitespace-pre-wrap break-words min-w-0">{op.suggested_clause}</p>
-              </div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-400">Market standard</p>
+              <p className="mt-1 text-xs leading-5 text-white/45">{opportunity.industry_best_practice}</p>
             </div>
           )}
         </div>
+
+        {opportunity.suggested_negotiation && (
+          <div className="mt-3 border-l-2 border-emerald-500/50 pl-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-400">Ask for this</p>
+            <p className="mt-1 text-sm leading-6 text-white/55">{opportunity.suggested_negotiation}</p>
+          </div>
+        )}
+
+        {opportunity.suggested_clause && (
+          <div className="mt-3 border-l-2 border-accent-500/50 pl-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-accent-400">Suggested language</p>
+              <button
+                type="button"
+                onClick={copyClause}
+                className="inline-flex items-center gap-1 text-[10px] text-white/30 transition hover:text-white"
+              >
+                {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-6 text-white/45">{opportunity.suggested_clause}</p>
+          </div>
+        )}
       </div>
     </div>
   );

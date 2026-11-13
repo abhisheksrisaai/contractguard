@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.core.status import AnalysisStatus
+
 logger = logging.getLogger(__name__)
 
 _WEASYPRINT_AVAILABLE: Optional[bool] = None
@@ -46,6 +48,8 @@ def _safe_context(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
             fair_matches += 1
 
     overall = analysis_result.get("overall_score", 0)
+    if not isinstance(overall, (int, float)):
+        overall = 0
     if overall >= 75:
         risk_class = "high"; risk_level = "High Risk"
     elif overall >= 45:
@@ -75,6 +79,7 @@ def _safe_context(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         "confidence": analysis_result.get("confidence"),
         "recommended_action": analysis_result.get("recommended_action", ""),
         "five_c": analysis_result.get("five_c"),
+        "five_c_status": analysis_result.get("five_c_status"),
         "red_flags": analysis_result.get("red_flags", []) or [],
         "executive_summary": analysis_result.get("executive_summary", ""),
         "findings": findings,
@@ -84,6 +89,11 @@ def _safe_context(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         "f_low": f_low,
         "negotiation_opportunities": analysis_result.get("negotiation_opportunities", []) or [],
         "missing_clauses": analysis_result.get("missing_clauses", []) or [],
+        "analysis_status": analysis_result.get(
+            "analysis_status", AnalysisStatus.COMPLETE.value,
+        ),
+        "failed_clause_count": analysis_result.get("failed_clause_count", 0),
+        "analyzed_clause_count": analysis_result.get("analyzed_clause_count", len(clauses)),
     }
 
 

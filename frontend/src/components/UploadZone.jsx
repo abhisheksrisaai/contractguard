@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Upload, FileText, CheckCircle, Loader, ShieldAlert } from 'lucide-react';
 import { analyzeContract } from '../services/api';
 
-export default function UploadZone({ onAnalysisComplete, onLoading, onError, selectedType, selectedModel }) {
+export default function UploadZone({ onAnalysisComplete, onStartAnalysis, onProgress, onError, selectedType, selectedModel }) {
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -35,28 +35,37 @@ export default function UploadZone({ onAnalysisComplete, onLoading, onError, sel
 
   const handleAnalyze = async () => {
     if (!file) return;
+    const runId = onStartAnalysis?.() ?? null;
     setUploading(true);
     setProgress(0);
-    onLoading(true);
     onError('');
     try {
       const result = await analyzeContract(file, {
         contractType: selectedType || undefined,
         model: selectedModel || undefined,
-        onProgress: (pct) => setProgress(pct),
+        onProgress: (pct) => {
+          setProgress(pct);
+          onProgress?.(pct, runId);
+        },
       });
-      onAnalysisComplete(result);
+      onAnalysisComplete(result, runId);
     } catch (err) {
-      onError(err.message || 'Analysis failed.');
-      onLoading(false);
+      onError(err.message || 'Analysis failed.', runId);
     } finally {
       setUploading(false);
       setProgress(0);
     }
   };
 
+  const uploadState = uploading ? 'uploading' : file ? 'ready' : dragOver ? 'dragging' : 'empty';
+
   return (
-    <div id="upload" className="max-w-xl mx-auto space-y-4 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+    <div
+      id="upload"
+      className="max-w-xl mx-auto space-y-4 animate-slide-up"
+      style={{ animationDelay: '0.2s' }}
+      data-upload-state={uploadState}
+    >
       <div
         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
         onClick={!file ? handleClick : undefined}
@@ -122,7 +131,7 @@ export default function UploadZone({ onAnalysisComplete, onLoading, onError, sel
           : (<><FileText className="w-5 h-5" />Analyze Contract</>)
         }
       </button>
-      <p className="text-xs text-center text-white/30">Accepts PDF contracts only &bull; Analysis takes ~45 seconds</p>
+      <p className="text-xs text-center text-white/30">Accepts PDF contracts only &bull; Usually 1–4 minutes</p>
     </div>
   );
 }

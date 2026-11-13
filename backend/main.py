@@ -7,6 +7,7 @@ contract classification, skill analysis, and parallel clause processing.
 Endpoints:
   GET  /                 — Welcome message
   GET  /api/health       — Health check with service statuses
+  GET  /api/models       — Supported model IDs and availability
   POST /api/analyze      — Upload PDF, full analysis pipeline
   POST /api/ask          — Contract Q&A
   POST /api/report       — Generate PDF report from analysis JSON
@@ -31,12 +32,16 @@ from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.status import (
+    AnalysisStatus, ClauseStatus, FiveCStatus, ParseQuality, PipelineStage,
+)
 from app.core.tracing import trace_log
 from app.services.pdf_extractor import PDFExtractor, ScannedPDFError
 from app.services.llm_service import (
     ContractAnalyzer,
     ANALYZE_PROMPT_VERSION,
     SYSTEM_PROMPT_VERSION,
+    QUOTA_EXHAUSTED_MSG,
 )
 from app.services.rag_service import RAGService
 from app.services.report_generator import ReportGenerator
@@ -60,16 +65,13 @@ report_generator = ReportGenerator()
 skill_analyzer = SkillAnalyzer(contract_analyzer, rag_service)
 
 # ── Allowed models ───────────────────────────────────────────────────
-ALLOWED_MODELS = {
-    "auto",  # use provider chain
-    "gemini",
-    "openai/gpt-oss-120b",
-}
-MODEL_LABELS = {
-    "auto": "Auto",
-    "gemini": "Gemini 3.6 Flash",
-    "openai/gpt-oss-120b": "GPT-OSS 120B (Groq)",
-}
+# Qwen only. "auto" is accepted as a backward-compatible alias for Qwen
+# but is not advertised in GET /api/models.
+QWEN_MODEL = "qwen/qwen3.8-27b"
+ALLOWED_MODELS = {QWEN_MODEL}
+MODEL_LABELS = {QWEN_MODEL: "Qwen 3.8 27B (Groq)"}
+MODEL_DESCRIPTIONS = {QWEN_MODEL: "Contract reasoning, scoring, and negotiation guidance"}
+MODEL_ORDER = (QWEN_MODEL,)
 VALID_CONTRACT_TYPES = {
     "employment_contract", "supplier_contract", "works_contract",
     "partner_agreement", "service_agreement", "nda", "purchase_order",
@@ -257,6 +259,7 @@ class ReportRequest(BaseModel):
     # ── New optional fields for enriched reports ─────
     contract_type: Optional[str] = None
     five_c: Optional[Dict[str, Any]] = None
+    five_c_status: Optional[str] = None
     red_flags: Optional[List[Dict[str, Any]]] = None
     negotiation_opportunities: Optional[List[Dict[str, Any]]] = None
     missing_clauses: Optional[List[str]] = None
@@ -264,6 +267,10 @@ class ReportRequest(BaseModel):
     confidence: Optional[float] = None
     executive_summary: Optional[str] = None
     findings: Optional[List[Dict[str, Any]]] = None
+    analysis_status: Optional[str] = None
+    failed_clause_count: Optional[int] = None
+    analyzed_clause_count: Optional[int] = None
+    failed_clause_ids: Optional[List[str]] = None
 
 
 class HealthResponse(BaseModel):
@@ -292,16 +299,30 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, endpoint: str) -> 
     limiter.record(ip)
 
 
+def _trace_stage(request_id: str, stage: PipelineStage, **detail: Any) -> None:
+    """Emit one structured line per completed pipeline stage.
+
+    The request is synchronous, so stages are observable in logs rather than
+    streamed to the client. Keeping the vocabulary in ``PipelineStage`` means a
+    future status endpoint can reuse the same names.
+    """
+    trace_log(
+        "pipeline_stage",
+        request_id=request_id,
+        stage=stage.value,
+        status="complete",
+        **detail,
+    )
+
+
 def _validate_model(model: Optional[str]) -> str:
-    """Validate and return the model name. Defaults to settings.GROQ_MODEL."""
-    if model is None:
-        return settings.GROQ_MODEL
-    if model not in ALLOWED_MODELS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported model '{model}'. Allowed: {', '.join(sorted(ALLOWED_MODELS))}.",
-        )
-    return model
+    """Return Qwen for omitted/auto selectors; reject any other model."""
+    if model is None or model in ("", "auto", QWEN_MODEL):
+        return QWEN_MODEL
+    raise HTTPException(
+        status_code=400,
+        detail=f"Unsupported model '{model}'. Only {QWEN_MODEL} is available.",
+    )
 
 
 # ── Per-clause analysis task (runs in thread) ────────────────────────
@@ -327,6 +348,32 @@ def _analyze_single_clause(clause: Dict, model: str, request_id: Optional[str] =
     analysis["content"] = clause.get("content", "")
     analysis["type"] = clause.get("type", "general")
     return analysis
+
+
+def _failed_clause_result(clause: Dict, index: int) -> Dict[str, Any]:
+    """Explicit failure marker. Never invent a Medium/50 score."""
+    return {
+        "id": clause.get("id", f"clause_{index:03d}"),
+        "title": clause.get("title", f"Clause {index + 1}"),
+        "content": clause.get("content", ""),
+        "type": clause.get("type", "general"),
+        "risk_level": "Unknown",
+        "risk_score": None,
+        "risk_factors": [],
+        "explanation": (
+            "Automated analysis could not be completed for this clause. "
+            "Please retry or review it manually."
+        ),
+        "suggested_alternative": "",
+        "missing_protections": [],
+        "fair_alternatives": [],
+        "comparison_notes": "",
+        "confidence": 0,
+        "needs_human_review": True,
+        "analysis_status": ClauseStatus.FAILED.value,
+        "parse_quality": ParseQuality.FAILED.value,
+        "fallback_used": False,
+    }
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -366,6 +413,20 @@ async def health_check():
     }
 
 
+@app.get("/api/models")
+async def list_models():
+    """Single source of truth for the model picker."""
+    models = []
+    for model_id in MODEL_ORDER:
+        models.append({
+            "id": model_id,
+            "label": MODEL_LABELS[model_id],
+            "description": MODEL_DESCRIPTIONS[model_id],
+            "available": settings.has_groq,
+        })
+    return {"default": QWEN_MODEL, "models": models}
+
+
 @app.post("/api/analyze")
 async def analyze_contract(
     request: Request,
@@ -380,7 +441,7 @@ async def analyze_contract(
     2. Extract raw text
     3. Classify contract type
     4. Segment into clauses
-    5. Analyze each clause with Groq LLM (parallel, concurrency=4)
+    5. Analyze each clause with the selected LLM provider (parallel, concurrency=4)
     6. Compare each clause with fair alternatives (RAG)
     7. Run red-flag scanner
     8. Run skill-based analysis (5Cs + findings)
@@ -424,6 +485,8 @@ async def analyze_contract(
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
+    _trace_stage(request_id, PipelineStage.VALIDATE, filename=file.filename)
+
     tmp_path = None
     try:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
@@ -446,6 +509,8 @@ async def analyze_contract(
             logger.exception("PDF extraction failed")
             raise HTTPException(status_code=500, detail=f"PDF extraction error: {e}")
 
+        _trace_stage(request_id, PipelineStage.EXTRACT, characters=len(full_text))
+
         # ── Step 2: Classify contract type ─────────────────────
         if ctype_override:
             contract_type = ctype_override
@@ -454,6 +519,10 @@ async def analyze_contract(
             contract_type, type_confidence = contract_classifier.classify(full_text)
 
         logger.info("Contract type: %s (confidence=%.2f)", contract_type, type_confidence)
+        _trace_stage(
+            request_id, PipelineStage.CLASSIFY,
+            contract_type=contract_type, type_confidence=round(type_confidence, 4),
+        )
 
         # ── Step 3: Run red-flag scanner ────────────────────────
         red_flags: List[dict] = []
@@ -461,6 +530,7 @@ async def analyze_contract(
             red_flags = scan_red_flags(full_text, contract_type)
         except Exception as exc:
             logger.warning("Red-flag scanner failed: %s", exc)
+        _trace_stage(request_id, PipelineStage.RED_FLAGS, findings=len(red_flags))
 
         # ── Step 4: Segment clauses ────────────────────────────
         try:
@@ -476,49 +546,15 @@ async def analyze_contract(
             )
 
         logger.info("Extracted %d clauses from %d-character document.", len(clauses), len(full_text))
+        _trace_stage(request_id, PipelineStage.SEGMENT, clauses=len(clauses))
 
-        # ── Step 5: Analyze each clause in parallel ─────────────
-        semaphore = asyncio.Semaphore(4)
-
-        async def analyze_with_limit(clause: Dict) -> Dict[str, Any]:
-            async with semaphore:
-                loop = asyncio.get_running_loop()
-                return await loop.run_in_executor(
-                    None, _analyze_single_clause, clause, selected_model, request_id,
-                )
-
-        tasks = [analyze_with_limit(clause) for clause in clauses]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        analyzed_clauses: List[Dict[str, Any]] = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.warning("Clause %s analysis failed: %s", clauses[i].get("id"), result)
-                clause = clauses[i]
-                analyzed_clauses.append({
-                    "id": clause.get("id", f"clause_{i:03d}"),
-                    "title": clause.get("title", f"Clause {i+1}"),
-                    "content": clause.get("content", ""),
-                    "type": clause.get("type", "general"),
-                    "risk_level": "Medium",
-                    "risk_score": 50,
-                    "risk_factors": ["Analysis failed — manual review recommended."],
-                    "explanation": f"Automated analysis could not be completed: {result}",
-                    "suggested_alternative": clause.get("content", ""),
-                    "missing_protections": [],
-                    "fair_alternatives": [],
-                    "comparison_notes": "RAG comparison unavailable.",
-                    "confidence": 40,
-                    "needs_human_review": True,
-                })
-            else:
-                analyzed_clauses.append(result)
-
-        # ── Step 6: Overall contract assessment ─────────────────
-        overall = contract_analyzer.analyze_contract(analyzed_clauses)
-
-        # ── Step 7: Skill-based analysis ────────────────────────
+        # ── Step 5: Skill-based analysis ───────────────────────
+        # Run this before the per-clause fan-out. The 5C check and the
+        # cross-contract findings are the highest-value output, and giving
+        # them first claim on the strongest provider lanes prevents the
+        # clause workers from exhausting the token budget they need.
         five_c = None
+        five_c_status = None
         skill_findings: List[dict] = []
         missing_clauses: List[str] = []
         negotiation_opportunities: List[dict] = []
@@ -527,8 +563,9 @@ async def analyze_contract(
         executive_summary = None
 
         try:
-            skill_result = skill_analyzer.analyze(full_text, contract_type)
+            skill_result = skill_analyzer.analyze(full_text, contract_type, selected_model)
             five_c = skill_result.get("five_c")
+            five_c_status = skill_result.get("five_c_status")
             skill_findings = skill_result.get("findings", [])
             missing_clauses = skill_result.get("missing_clauses", [])
             negotiation_opportunities = skill_result.get("negotiation_opportunities", [])
@@ -537,6 +574,99 @@ async def analyze_contract(
             executive_summary = skill_result.get("executive_summary")
         except Exception as exc:
             logger.warning("Skill analysis failed (non-fatal): %s", exc)
+            five_c_status = FiveCStatus.UNAVAILABLE.value
+        _trace_stage(
+            request_id, PipelineStage.SKILLS,
+            five_c_status=five_c_status, findings=len(skill_findings),
+        )
+
+        # ── Step 6: Analyze each clause with paced concurrency ──
+        # The LLM service also paces per-model token windows. Keeping the
+        # worker count at one per provider lane avoids a 31-task stampede.
+        concurrency = max(1, int(settings.LLM_MAX_CONCURRENCY))
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def analyze_with_limit(
+            clause: Dict, gate: asyncio.Semaphore,
+        ) -> Dict[str, Any]:
+            async with gate:
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(
+                    None, _analyze_single_clause, clause, selected_model, request_id,
+                )
+
+        async def analyze_many(
+            items: List[Dict], gate: asyncio.Semaphore,
+        ) -> List[Any]:
+            tasks = [analyze_with_limit(clause, gate) for clause in items]
+            return await asyncio.gather(*tasks, return_exceptions=True)
+
+        results = await analyze_many(clauses, semaphore)
+
+        # One retry pass for clauses that missed a usable response. This is
+        # cheap compared with making the user upload the whole PDF again.
+        retry_indices = [
+            i for i, result in enumerate(results)
+            if isinstance(result, Exception)
+            or result.get("analysis_status") == ClauseStatus.FAILED.value
+        ]
+        successful_before_retry = len(clauses) - len(retry_indices)
+        if retry_indices and successful_before_retry > 0:
+            logger.info(
+                "Retrying %d clause(s) after transient provider pressure.",
+                len(retry_indices),
+            )
+            await asyncio.sleep(1.0)
+            retry_gate = asyncio.Semaphore(max(1, min(2, concurrency)))
+            retry_results = await asyncio.gather(
+                *[analyze_with_limit(clauses[i], retry_gate) for i in retry_indices],
+                return_exceptions=True,
+            )
+            for index, retry_result in zip(retry_indices, retry_results):
+                if (
+                    not isinstance(retry_result, Exception)
+                    and retry_result.get("analysis_status") != ClauseStatus.FAILED.value
+                ):
+                    results[index] = retry_result
+
+        analyzed_clauses: List[Dict[str, Any]] = []
+        failed_clause_ids: List[str] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.warning("Clause %s analysis failed: %s", clauses[i].get("id"), result)
+                failed = _failed_clause_result(clauses[i], i)
+                analyzed_clauses.append(failed)
+                failed_clause_ids.append(failed["id"])
+            else:
+                analyzed_clauses.append(result)
+                if result.get("analysis_status") == ClauseStatus.FAILED.value:
+                    failed_clause_ids.append(result.get("id", ""))
+
+        successful_clauses = [
+            c for c in analyzed_clauses if c.get("analysis_status") != ClauseStatus.FAILED.value
+        ]
+
+        # Never compute an overall score from invented placeholder clauses.
+        if not successful_clauses:
+            raise HTTPException(
+                status_code=503,
+                detail=QUOTA_EXHAUSTED_MSG,
+                headers={"Retry-After": "60"},
+            )
+        _trace_stage(
+            request_id, PipelineStage.CLAUSES,
+            total=len(analyzed_clauses),
+            analyzed=len(successful_clauses),
+            failed=len(failed_clause_ids),
+        )
+
+        # ── Step 7: Overall contract assessment ─────────────────
+        overall = contract_analyzer.analyze_contract(successful_clauses)
+        overall["total_clauses"] = len(analyzed_clauses)
+        _trace_stage(
+            request_id, PipelineStage.AGGREGATE,
+            overall_score=overall.get("overall_score", 0),
+        )
 
         # ── Build response ─────────────────────────────────────
         remaining = analyze_limiter.remaining(_client_ip(request))
@@ -547,15 +677,26 @@ async def analyze_contract(
             type_dist[ct] = type_dist.get(ct, 0) + 1
 
         elapsed = round(time.time() - t_start, 1)
-        logger.info("Analysis complete in %.1fs (%d clauses, type=%s)", elapsed, len(analyzed_clauses), contract_type)
+        analysis_status = (
+            AnalysisStatus.PARTIAL.value
+            if failed_clause_ids
+            else AnalysisStatus.COMPLETE.value
+        )
+        logger.info(
+            "Analysis %s in %.1fs (%d/%d clauses analyzed, type=%s)",
+            analysis_status, elapsed, len(successful_clauses),
+            len(analyzed_clauses), contract_type,
+        )
 
         # ── Determine ai_provider from call log ───────────────
         call_log = contract_analyzer._call_log
         ai_provider = "fallback"
+        ai_providers: List[str] = []
         if call_log:
             from collections import Counter
             top = Counter(call_log).most_common(1)[0][0]
             ai_provider = top
+            ai_providers = list(dict.fromkeys(call_log))
         contract_analyzer._call_log = []  # reset for next request
 
         needs_review_ids = [
@@ -565,10 +706,15 @@ async def analyze_contract(
             "analyze", request_id=request_id, filename=file.filename,
             contract_type=contract_type, type_confidence=round(type_confidence, 4),
             total_clauses=len(analyzed_clauses),
+            analyzed_clause_count=len(successful_clauses),
+            failed_clause_count=len(failed_clause_ids),
+            failed_clause_ids=failed_clause_ids,
+            analysis_status=analysis_status,
             needs_review_count=len(needs_review_ids),
             needs_review_clause_ids=needs_review_ids,
             overall_score=overall.get("overall_score", 0),
             confidence=confidence, ai_provider=ai_provider,
+            ai_providers=ai_providers,
             requested_model=selected_model,
             system_prompt_version=SYSTEM_PROMPT_VERSION,
             analyze_prompt_version=ANALYZE_PROMPT_VERSION,
@@ -580,6 +726,7 @@ async def analyze_contract(
                 "success": True,
                 "request_id": request_id,
                 "filename": file.filename,
+                "analysis_status": analysis_status,
                 "overall_score": overall.get("overall_score", 0),
                 "risk_breakdown": overall.get("risk_breakdown", {"High": 0, "Medium": 0, "Low": 0}),
                 "high_risk_clauses": overall.get("high_risk_clauses", []),
@@ -587,6 +734,9 @@ async def analyze_contract(
                 "needs_review_clause_ids": needs_review_ids,
                 "assessment": overall.get("summary", ""),
                 "total_clauses": len(analyzed_clauses),
+                "analyzed_clause_count": len(successful_clauses),
+                "failed_clause_count": len(failed_clause_ids),
+                "failed_clause_ids": failed_clause_ids,
                 "clauses": analyzed_clauses,
                 "type_distribution": type_dist,
                 "full_text_length": len(full_text),
@@ -594,23 +744,29 @@ async def analyze_contract(
                 "contract_type": contract_type,
                 "type_confidence": round(type_confidence, 4),
                 "five_c": five_c,
+                "five_c_status": five_c_status,
                 "red_flags": red_flags,
                 "missing_clauses": missing_clauses or [],
+                "findings": skill_findings,
                 "negotiation_opportunities": negotiation_opportunities or [],
                 "recommended_action": recommended_action,
                 "confidence": confidence,
                 "executive_summary": executive_summary or "",
                 "analysis_time_seconds": elapsed,
                 "ai_provider": ai_provider,
+                "ai_providers": ai_providers,
             },
             headers={"X-RateLimit-Remaining": str(remaining)},
         )
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in /api/analyze")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Please try again.",
+        )
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
@@ -633,6 +789,7 @@ async def ask_question(request: Request, payload: AskRequest):
         answer = contract_analyzer.answer_question(
             contract_text=payload.contract_text,
             question=payload.question,
+            model=selected_model,
             request_id=request_id,
         )
         remaining = ask_limiter.remaining(_client_ip(request))
@@ -646,9 +803,13 @@ async def ask_question(request: Request, payload: AskRequest):
             },
             headers={"X-RateLimit-Remaining": str(remaining)},
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Q&A failed")
-        raise HTTPException(status_code=500, detail=f"Q&A service error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Q&A service is temporarily unavailable. Please try again.",
+            headers={"Retry-After": "30"},
+        )
 
 
 @app.post("/api/report")
@@ -669,6 +830,7 @@ async def generate_report(request: Request, payload: ReportRequest):
             # ── Forward new optional fields ──────────
             "contract_type": payload.contract_type,
             "five_c": payload.five_c,
+            "five_c_status": payload.five_c_status,
             "red_flags": payload.red_flags or [],
             "negotiation_opportunities": payload.negotiation_opportunities or [],
             "missing_clauses": payload.missing_clauses or [],
@@ -676,6 +838,10 @@ async def generate_report(request: Request, payload: ReportRequest):
             "confidence": payload.confidence,
             "executive_summary": payload.executive_summary or "",
             "findings": payload.findings or [],
+            "analysis_status": payload.analysis_status or AnalysisStatus.COMPLETE.value,
+            "failed_clause_count": payload.failed_clause_count or 0,
+            "analyzed_clause_count": payload.analyzed_clause_count or len(payload.clauses),
+            "failed_clause_ids": payload.failed_clause_ids or [],
         }
 
         pdf_bytes = report_generator.generate_report(analysis_result)

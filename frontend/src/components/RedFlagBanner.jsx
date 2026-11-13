@@ -1,10 +1,11 @@
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 const SEVERITY_COLORS = {
-  CRITICAL: 'border-red-500/30 bg-red-500/5 text-red-400',
-  HIGH: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
-  MEDIUM: 'border-white/10 bg-white/[0.02] text-white/50',
+  CRITICAL: 'text-red-400',
+  HIGH: 'text-amber-400',
+  MEDIUM: 'text-white/45',
+  LOW: 'text-white/30',
 };
 
 function truncateAtWord(text, max) {
@@ -17,50 +18,45 @@ function truncateAtWord(text, max) {
 export default function RedFlagBanner({ redFlags }) {
   if (!redFlags || redFlags.length === 0) return null;
 
-  const critical = redFlags.filter((f) => f.severity === 'CRITICAL');
-  const high = redFlags.filter((f) => f.severity === 'HIGH');
-  const hasCritical = critical.length > 0;
-  const hasHigh = high.length > 0;
-
-  // If no CRITICAL and no HIGH, render nothing (don't show a red banner saying 0 critical)
-  if (!hasCritical && !hasHigh) return null;
+  const critical = redFlags.filter((flag) => flag.severity === 'CRITICAL');
+  const high = redFlags.filter((flag) => flag.severity === 'HIGH');
+  if (critical.length === 0 && high.length === 0) return null;
 
   const sorted = [...redFlags].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99)
   );
 
   return (
-    <div className={`card p-5 animate-slide-up ${hasCritical ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-amber-500/20 bg-amber-500/[0.03]'}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle className={`w-5 h-5 ${hasCritical ? 'text-red-400' : 'text-amber-400'}`} />
-        <h3 className={`font-bold ${hasCritical ? 'text-red-400' : 'text-amber-400'}`}>
-          {hasCritical && `${critical.length} Critical Red Flag${critical.length !== 1 ? 's' : ''}`}
-          {hasCritical && hasHigh && ' • '}
-          {hasHigh && `${high.length} High-Priority Red Flag${high.length !== 1 ? 's' : ''}`}
-          {' '}(auto-detected)
-        </h3>
+    <section className="border-y border-white/10 py-4 animate-slide-up">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <AlertTriangle className="h-4 w-4 text-amber-400" />
+        <h2 className="text-sm font-semibold text-white">Automated risk flags</h2>
+        <span className="text-[9px] uppercase tracking-[0.14em] text-white/25">Rule scan, not legal advice</span>
+        <span className="ml-auto text-[10px] uppercase tracking-[0.12em] text-white/30">
+          {critical.length > 0 && <span className="text-red-400">{critical.length} critical</span>}
+          {critical.length > 0 && high.length > 0 && <span className="text-white/20"> / </span>}
+          {high.length > 0 && <span className="text-amber-400">{high.length} high</span>}
+        </span>
       </div>
-      <div className="space-y-2">
-        {sorted.slice(0, 6).map((f, i) => {
-          const sevStyle = SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.MEDIUM;
-          return (
-            <div key={i} className={`flex items-start gap-2.5 p-3 rounded-xl border ${sevStyle}`}>
-              <span className="text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">{f.severity}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm break-words">{f.pattern || f.finding || ''}</p>
-                {f.evidence && (
-                  <p className="text-[11px] text-white/30 mt-0.5 italic break-words">
-                    {truncateAtWord(f.evidence, 120)}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {sorted.length > 6 && (
-          <p className="text-xs text-white/30 text-center">+{sorted.length - 6} more</p>
-        )}
+
+      <div className="mt-3 divide-y divide-white/5 border-y border-white/5">
+        {sorted.slice(0, 6).map((flag, index) => (
+          <div key={index} className="grid gap-2 py-3 sm:grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,0.9fr)] sm:gap-4">
+            <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${SEVERITY_COLORS[flag.severity] || SEVERITY_COLORS.MEDIUM}`}>
+              {flag.severity || 'MEDIUM'}
+            </span>
+            <p className="text-sm leading-6 text-white/65">{flag.pattern || flag.finding || ''}</p>
+            {flag.evidence ? (
+              <p className="text-xs leading-5 text-white/30">{truncateAtWord(flag.evidence, 150)}</p>
+            ) : (
+              <span />
+            )}
+          </div>
+        ))}
       </div>
-    </div>
+      {sorted.length > 6 && (
+        <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-white/25">+{sorted.length - 6} more flags in the report</p>
+      )}
+    </section>
   );
 }

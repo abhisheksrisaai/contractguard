@@ -7,10 +7,15 @@ const RISK_CONFIG = {
   Low:    { border: 'border-l-emerald-500', dot: 'bg-emerald-500', icon: Shield, iconColor: 'text-emerald-400' },
 };
 
+const FAILED_CONFIG = {
+  border: 'border-l-white/20', dot: 'bg-white/20', icon: AlertTriangle, iconColor: 'text-white/30',
+};
+
 export default function ClauseAccordion({ clause }) {
   const [expanded, setExpanded] = useState(false);
-  const risk = clause.risk_level || 'Low';
-  const config = RISK_CONFIG[risk] || RISK_CONFIG.Low;
+  const failed = clause.analysis_status === 'failed' || clause.risk_level === 'Unknown' || clause.risk_score == null;
+  const risk = failed ? 'Failed' : (clause.risk_level || 'Low');
+  const config = failed ? FAILED_CONFIG : (RISK_CONFIG[risk] || RISK_CONFIG.Low);
   const Icon = config.icon;
   const hasAlternatives = clause.fair_alternatives?.length > 0;
   const hasRiskFactors = clause.risk_factors?.length > 0;
@@ -23,7 +28,7 @@ export default function ClauseAccordion({ clause }) {
         className="w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
         aria-expanded={expanded}
       >
-        <div className={`w-3 h-3 rounded-full shrink-0 ${config.dot} ${risk === 'High' ? 'animate-pulse' : ''}`} />
+        <div className={`w-3 h-3 rounded-full shrink-0 ${config.dot} ${!failed && risk === 'High' ? 'animate-pulse' : ''}`} />
 
         {/* Title row: title + type pill on same line, risk badge + chevron on right */}
         <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
@@ -33,10 +38,10 @@ export default function ClauseAccordion({ clause }) {
 
         {/* Risk badge + score + chevron — always in one compact group */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={`badge-risk-${risk.toLowerCase()} inline-flex items-center gap-1`}>
+          <span className={`${failed ? 'bg-white/5 text-white/40 border border-white/10 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5' : `badge-risk-${risk.toLowerCase()}`} inline-flex items-center gap-1`}>
             <Icon className={`w-3 h-3 ${config.iconColor}`} />
-            <span className="hidden xs:inline">{risk}</span>
-            <span className="text-white/30 font-normal ml-1">{clause.risk_score ?? '?'}/100</span>
+            <span className="hidden xs:inline">{failed ? 'Not analyzed' : risk}</span>
+            <span className="text-white/30 font-normal ml-1">{failed ? '—' : (clause.risk_score ?? '?')}/100</span>
           </span>
           {expanded ? <ChevronUp className="w-5 h-5 text-white/30 shrink-0" /> : <ChevronDown className="w-5 h-5 text-white/30 shrink-0" />}
         </div>
@@ -49,11 +54,20 @@ export default function ClauseAccordion({ clause }) {
 
       {expanded && (
         <div className="px-4 sm:px-5 pb-5 space-y-4 border-t border-white/5 pt-4 animate-slide-up">
+          {failed && (
+            <div className="bg-amber-500/5 rounded-xl p-4 border border-amber-500/10">
+              <h5 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Not analyzed</h5>
+              <p className="text-sm text-amber-300/70 leading-relaxed">
+                This clause did not receive a usable model response. It is excluded from the score and marked for manual review.
+              </p>
+            </div>
+          )}
+
           <Section icon={<BookOpen className="w-4 h-4" />} label="Original Clause">
             <p className="text-sm text-white/50 bg-white/[0.03] rounded-xl p-4 border border-white/5 leading-relaxed italic whitespace-pre-line break-words">{clause.content || 'No text available.'}</p>
           </Section>
 
-          {(clause.explanation || clause.risk_score) && (
+          {!failed && (clause.explanation || clause.risk_score) && (
             <Section icon={<AlertTriangle className="w-4 h-4 text-amber-400" />} label="Risk Analysis">
               <p className="text-sm text-white/60 leading-relaxed break-words">{clause.explanation || 'Risk score indicates the severity of potential concerns.'}</p>
             </Section>

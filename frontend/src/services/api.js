@@ -22,14 +22,15 @@ api.interceptors.response.use(
     enhanced.isNetwork = !err.response && err.code !== 'ECONNABORTED';
     enhanced.isRateLimited = err.response?.status === 429;
 
-    if (err.response?.status >= 500 && err.response?.status < 600 && !originalRequest._retryCount) {
-      originalRequest._retryCount = 1;
-      await new Promise((r) => setTimeout(r, 1500));
-      return api(originalRequest);
-    }
-    if (err.response?.status >= 500 && originalRequest._retryCount === 1) {
-      originalRequest._retryCount = 2;
-      await new Promise((r) => setTimeout(r, 3000));
+    const status = err.response?.status;
+    // Never auto-retry an expensive analysis: a 5xx may have already spent
+    // provider quota, and a retry would duplicate the whole pipeline.
+    const isAnalyze = originalRequest?.url?.includes('/analyze');
+    const retryable = status >= 500 && status < 600 && status !== 503;
+    const retryCount = originalRequest?._retryCount || 0;
+    if (!isAnalyze && retryable && retryCount < 2) {
+      originalRequest._retryCount = retryCount + 1;
+      await new Promise((r) => setTimeout(r, retryCount === 0 ? 1500 : 3000));
       return api(originalRequest);
     }
 
@@ -54,7 +55,7 @@ export async function analyzeContract(file, opts = {}) {
 
   const { data } = await api.post('/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 180000,
+    timeout: 480000,
     onUploadProgress: (e) => {
       if (onProgress && e.total) {
         onProgress(Math.round((e.loaded / e.total) * 100));
@@ -64,11 +65,15 @@ export async function analyzeContract(file, opts = {}) {
   return data;
 }
 
-export async function askQuestion(contractText, question) {
-  const { data } = await api.post('/ask', {
-    contract_text: contractText,
-    question,
-  });
+export async function askQuestion(contractText, question, model) {
+  const payload = { contract_text: contractText, question };
+  if (model && model !== 'auto') payload.model = model;
+  const { data } = await api.post('/ask', payload);
+  return data;
+}
+
+export async function getModels() {
+  const { data } = await api.get('/models');
   return data;
 }
 
@@ -81,6 +86,7 @@ export async function downloadReport(analysisData) {
     // Forward all new analysis keys for enriched PDF
     contract_type: analysisData.contract_type || undefined,
     five_c: analysisData.five_c || undefined,
+    five_c_status: analysisData.five_c_status || undefined,
     red_flags: analysisData.red_flags || undefined,
     negotiation_opportunities: analysisData.negotiation_opportunities || undefined,
     missing_clauses: analysisData.missing_clauses || undefined,
@@ -88,6 +94,10 @@ export async function downloadReport(analysisData) {
     confidence: analysisData.confidence || undefined,
     executive_summary: analysisData.executive_summary || undefined,
     findings: analysisData.findings || undefined,
+    analysis_status: analysisData.analysis_status || undefined,
+    failed_clause_count: analysisData.failed_clause_count || undefined,
+    analyzed_clause_count: analysisData.analyzed_clause_count || undefined,
+    failed_clause_ids: analysisData.failed_clause_ids || undefined,
   };
 
   const response = await api.post('/report', payload, {

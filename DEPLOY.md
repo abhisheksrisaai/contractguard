@@ -72,7 +72,8 @@ Qdrant stores your fair clause library and powers semantic search.
 | Key | Value | Notes |
 |-----|-------|-------|
 | `GROQ_API_KEY` | `gsk_your_key_here` | Your Groq API key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | LLM model name |
+| `GROQ_MODEL` | `qwen/qwen3.8-27b` | Only supported analysis model |
+| `PROVIDER_ORDER` | `groq` | Single Groq lane; no fallback models |
 | `QDRANT_MODE` | `remote` | Connects to remote Qdrant |
 | `QDRANT_HOST` | (from Qdrant service) | Render auto-fills if using private service |
 | `QDRANT_PORT` | `6333` | Qdrant HTTP port |

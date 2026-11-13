@@ -19,7 +19,7 @@ export default function HeroSection({ onUploadClick, onHowItWorksClick }) {
         </h1>
 
         <p className="text-base sm:text-lg text-white/40 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed animate-slide-up" style={{ animationDelay: '0.15s' }}>
-          Upload any employment, supplier, works or partner agreement. AI reviews every clause, checks enforceability, benchmarks against fair standards and tells you exactly what to negotiate — in under 60 seconds.
+          Upload any employment, supplier, works or partner agreement. AI reviews each clause, checks enforceability, benchmarks against fair standards and tells you what to negotiate. Most contracts take 1–4 minutes.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>

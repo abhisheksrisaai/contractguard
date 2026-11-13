@@ -10,35 +10,51 @@ const STEPS = [
   { label: 'Scoring risks & building report', icon: BarChart3, desc: 'Aggregating findings into your negotiation playbook' },
 ];
 
-export default function AnalysisProgress() {
-  const [step, setStep] = useState(0);
+// The backend request is synchronous, so this is a presentation schedule, not
+// telemetry. Timings are tuned to the real Qwen-only run (roughly 3-4 min):
+// extraction/classification finish quickly, clause scoring owns the middle,
+// and aggregation lands near the end.
+const STEP_AT_SECONDS = [0, 4, 8, 20, 150, 210];
+
+function stepForElapsed(elapsed) {
+  let active = 0;
+  STEP_AT_SECONDS.forEach((threshold, index) => {
+    if (elapsed >= threshold) active = index;
+  });
+  return active;
+}
+
+export default function AnalysisProgress({ uploadProgress = 0 }) {
   const [elapsed, setElapsed] = useState(0);
-  const intervalRef = useRef(null);
   const tickRef = useRef(null);
 
   useEffect(() => {
-    // Advance steps on a timer (~8.5s each)
-    intervalRef.current = setInterval(() => {
-      setStep((s) => Math.min(s + 1, STEPS.length - 1));
-    }, 8500);
-
     tickRef.current = setInterval(() => {
-      setElapsed((e) => e + 1);
+      setElapsed((value) => value + 1);
     }, 1000);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, []);
 
+  const step = stepForElapsed(elapsed);
   const progressPct = Math.min(95, (step / (STEPS.length - 1)) * 100 + (step > 0 ? 10 : 0));
+  const uploading = uploadProgress > 0 && uploadProgress < 100;
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-12 animate-scale-in">
+    <div
+      className="max-w-xl mx-auto px-4 py-12 animate-scale-in"
+      role="status"
+      aria-live="polite"
+      data-analysis-phase="analyzing"
+    >
       <div className="text-center mb-8">
         <h2 className="text-xl font-bold text-white mb-1">Analyzing Your Contract</h2>
-        <p className="text-sm text-white/40">This takes about 50 seconds — hang tight</p>
+        <p className="text-sm text-white/40">Most contracts take 1–4 minutes. Larger documents can take longer.</p>
+        {uploading && (
+          <p className="mt-2 text-xs tabular-nums text-white/30">Uploading contract… {Math.round(uploadProgress)}%</p>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -96,7 +112,7 @@ export default function AnalysisProgress() {
         <div className="mt-6 bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 flex items-start gap-2 animate-fade-in">
           <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-300/80">
-            Free cloud server may be waking up — first analysis can take a little longer. Subsequent analyses are faster.
+            The free-tier model is paced to stay inside its rate limit, so a full contract can take a few minutes. You can leave this tab open.
           </p>
         </div>
       )}
